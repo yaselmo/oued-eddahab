@@ -2,16 +2,60 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [error, setError] = useState("");
+  const router = useRouter();
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    setError(
-      "Login API is not implemented yet."
-    );
+    setError("");
+    setLoading(true);
+
+    const form = new FormData(event.currentTarget);
+
+    const data = {
+      email: String(form.get("email") ?? "")
+        .trim()
+        .toLowerCase(),
+      password: String(form.get("password") ?? ""),
+    };
+
+    try {
+      const response = await fetch(
+        `${API_URL}/api/auth/login`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        },
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        setError(result.message || "Login failed");
+        return;
+      }
+
+      localStorage.setItem("token", result.token);
+
+      router.push("/profile");
+    } catch (error) {
+      console.error(error);
+      setError("Unable to connect to the server");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -37,6 +81,7 @@ export default function LoginPage() {
               name="email"
               type="email"
               placeholder="University email"
+              autoComplete="email"
               required
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white outline-none focus:border-zinc-500"
             />
@@ -45,6 +90,7 @@ export default function LoginPage() {
               name="password"
               type="password"
               placeholder="Password"
+              autoComplete="current-password"
               required
               className="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-3 text-white outline-none focus:border-zinc-500"
             />
@@ -57,9 +103,10 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black transition hover:bg-zinc-200"
+              disabled={loading}
+              className="w-full rounded-lg bg-white px-4 py-3 font-semibold text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Sign in
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
 
