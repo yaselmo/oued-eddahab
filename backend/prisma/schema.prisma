@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ======================================================
+// USERS
+// ======================================================
+
+model User {
+  id       String @id @default(uuid())
+  email    String @unique
+  username String @unique
+  password String
+
+  firstName String
+  lastName  String
+  bio       String?
+  avatarUrl String?
+
+  program String?
+  year    Int?
+
+  role UserRole @default(STUDENT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts           Post[]
+  comments        Comment[]
+  likes           Like[]
+  clubMemberships ClubMember[]
+  eventAttendance EventAttendee[]
+}
+
+enum UserRole {
+  STUDENT
+  MODERATOR
+  ADMIN
+}
+
+// ======================================================
+// CLUBS
+// ======================================================
+
+model Club {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique
+  description String?
+  logoUrl     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members ClubMember[]
+  posts   Post[]
+  events  Event[]
+}
+
+model ClubMember {
+  id String @id @default(uuid())
+
+  userId String
+  clubId String
+
+  role ClubRole @default(MEMBER)
+
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clubId])
+  @@index([clubId])
+}
+
+enum ClubRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
+// ======================================================
+// POSTS
+// ======================================================
+
+model Post {
+  id      String @id @default(uuid())
+  content String
+
+  authorId String
+  clubId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  club   Club? @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  comments Comment[]
+  likes    Like[]
+
+  @@index([authorId])
+  @@index([clubId])
+  @@index([createdAt])
+}
+
+// ======================================================
+// COMMENTS
+// ======================================================
+
+model Comment {
+  id      String @id @default(uuid())
+  content String
+
+  authorId String
+  postId   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// ======================================================
+// LIKES
+// ======================================================
+
+model Like {
+  id String @id @default(uuid())
+
+  userId String
+  postId String
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+// ======================================================
+// EVENTS / MEETINGS
+// ======================================================
+
+model Event {
+  id          String  @id @default(uuid())
+  title       String
+  description String?
+
+  location String?
+
+  startsAt DateTime
+  endsAt   DateTime?
+
+  clubId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  attendees EventAttendee[]
+
+  @@index([clubId])
+  @@index([startsAt])
+}
+
+model EventAttendee {
+  id String @id @default(uuid())
+
+  userId  String
+  eventId String
+
+  status AttendanceStatus @default(GOING)
+
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+}
+
+enum AttendanceStatus {
+  GOING
+  INTERESTED
+}
