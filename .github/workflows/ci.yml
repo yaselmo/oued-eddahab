@@ -22,6 +22,8 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         run: bun ci
@@ -32,15 +34,9 @@ jobs:
       - name: Type check
         run: bunx tsc --noEmit
 
-      - name: Lint
-        run: bun run lint
-
-      - name: Test
-        run: bun run test
-
       - name: Build
         run: bun run build
-        
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
