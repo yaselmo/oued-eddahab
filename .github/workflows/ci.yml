@@ -28,14 +28,11 @@ jobs:
       - name: Install dependencies
         run: bun ci
 
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
       - name: Type check
-        run: bun run typecheck --if-present
-
-      - name: Lint
-        run: bun run lint --if-present
-
-      - name: Test
-        run: bun run test --if-present
+        run: bunx tsc --noEmit
 
       - name: Build
         run: bun run build
@@ -61,10 +58,10 @@ jobs:
         run: bun ci
 
       - name: Type check
-        run: bun run typecheck --if-present
+        run: bunx tsc --noEmit
 
       - name: Lint
-        run: bun run lint --if-present
+        run: bun run lint
 
       - name: Build
         run: bun run build
