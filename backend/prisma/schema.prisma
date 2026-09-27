@@ -17,13 +17,33 @@ model User {
   username String @unique
   password String
 
+  // Basic profile
   firstName String
   lastName  String
   bio       String?
   avatarUrl String?
 
+  // Personal information
+  age         Int?
+  city        String?
+  country     String? @default("Morocco")
+  nationality String?
+  phone       String?
+
+  languages String[] @default([])
+  interests String[] @default([])
+
+  sex Sex?
+
+  // Academic information
   program String?
   year    Int?
+
+  institutionId String?
+  institution   Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+
+  // Email verification
+  emailVerifiedAt DateTime?
 
   role UserRole @default(STUDENT)
 
@@ -35,12 +55,23 @@ model User {
   likes           Like[]
   clubMemberships ClubMember[]
   eventAttendance EventAttendee[]
+
+  @@index([institutionId])
+  @@index([city])
+  @@index([country])
 }
 
 enum UserRole {
   STUDENT
   MODERATOR
   ADMIN
+}
+
+enum Sex {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
 }
 
 // ======================================================
@@ -77,6 +108,7 @@ model ClubMember {
 
   @@unique([userId, clubId])
   @@index([clubId])
+  @@index([userId])
 }
 
 enum ClubRole {
@@ -127,6 +159,7 @@ model Comment {
   author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
   post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
+  @@index([authorId])
   @@index([postId])
 }
 
@@ -146,6 +179,7 @@ model Like {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
+  @@index([userId])
   @@index([postId])
 }
 
@@ -168,7 +202,8 @@ model Event {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  club      Club            @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
   attendees EventAttendee[]
 
   @@index([clubId])
@@ -189,10 +224,64 @@ model EventAttendee {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@unique([userId, eventId])
+  @@index([userId])
   @@index([eventId])
 }
 
 enum AttendanceStatus {
   GOING
   INTERESTED
+}
+
+// ======================================================
+// UNIVERSITIES
+// ======================================================
+
+model University {
+  id         String  @id @default(cuid())
+  name       String  @unique
+  nameArabic String?
+
+  country String @default("Morocco")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  institutions Institution[]
+
+  @@index([country])
+}
+
+// ======================================================
+// INSTITUTIONS / SCHOOLS
+// ======================================================
+
+model Institution {
+  id String @id @default(cuid())
+
+  name         String
+  abbreviation String?
+  nameArabic   String?
+
+  city    String
+  country String @default("Morocco")
+
+  address String?
+  phone   String?
+  fax     String?
+
+  studentCount2023_2024 Int?
+
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, city])
+  @@index([city])
+  @@index([country])
+  @@index([universityId])
 }
