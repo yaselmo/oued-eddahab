@@ -1,5 +1,6 @@
 import { Router } from "express";
 
+import { authRateLimiter } from "../../middleware/rate-limit.middleware.js";
 import {
   login,
   register,
@@ -7,7 +8,7 @@ import {
 
 const router = Router();
 
-router.post("/register", register);
-router.post("/login", login);
+router.post("/register", authRateLimiter, register);
+router.post("/login", authRateLimiter, login);
 
 export default router;

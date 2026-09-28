@@ -57,14 +57,11 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (!selectedCity) {
-      setInstitutions([]);
       return;
     }
 
     async function loadInstitutions() {
       try {
-        setLoadingInstitutions(true);
-
         const response = await fetch(
           `${API_URL}/api/institutions?city=${encodeURIComponent(selectedCity)}`,
         );
@@ -84,7 +81,7 @@ export default function RegisterPage() {
       }
     }
 
-    loadInstitutions();
+    void loadInstitutions();
   }, [selectedCity, API_URL]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -262,7 +259,13 @@ export default function RegisterPage() {
                   id="city"
                   name="city"
                   value={selectedCity}
-                  onChange={(event) => setSelectedCity(event.target.value)}
+                  onChange={(event) => {
+                    const city = event.target.value;
+
+                    setSelectedCity(city);
+                    setInstitutions([]);
+                    setLoadingInstitutions(Boolean(city));
+                  }}
                   required
                   className={inputClass}
                   disabled={loadingCities}
