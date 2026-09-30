@@ -1,0 +1,233 @@
+import type { Response } from "express";
+
+import type { AuthenticatedRequest } from "../../middleware/auth.middleware.js";
+import {
+  createCourseSchema,
+  createResourceSchema,
+  listResourcesSchema,
+  resourceIdSchema,
+} from "./resources.schema.js";
+import {
+  createCourse,
+  createResource,
+  deleteResource,
+  getResource,
+  getResourceFile,
+  listCourses,
+  listResources,
+  ResourceServiceError,
+  recordResourceDownload,
+} from "./resources.service.js";
+import {
+  assertResourceFileReadable,
+  removeResourceFile,
+  validateUploadedPdf,
+} from "./resources.files.js";
+
+async function removeUploadedFile(fileName?: string) {
+  try {
+    await removeResourceFile(fileName);
+  } catch (error) {
+    console.error("Failed to remove resource file", error);
+  }
+}
+
+function handleError(res: Response, error: unknown, fallback: string) {
+  if (error instanceof ResourceServiceError) {
+    res.status(error.status).json({ message: error.message });
+    return;
+  }
+
+  console.error(error);
+  res.status(500).json({ message: fallback });
+}
+
+function requireUserId(req: AuthenticatedRequest, res: Response) {
+  if (!req.userId) {
+    res.status(401).json({ message: "Authentication required" });
+    return null;
+  }
+
+  return req.userId;
+}
+
+export async function getResources(req: AuthenticatedRequest, res: Response) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = listResourcesSchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({
+      message: "Invalid resource filters",
+      errors: parsed.error.flatten(),
+    });
+    return;
+  }
+
+  try {
+    res.json(await listResources(userId, parsed.data));
+  } catch (error) {
+    handleError(res, error, "Failed to fetch resources");
+  }
+}
+
+export async function getResourceById(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = resourceIdSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid resource ID" });
+    return;
+  }
+
+  try {
+    res.json({ resource: await getResource(userId, parsed.data.id) });
+  } catch (error) {
+    handleError(res, error, "Failed to fetch resource");
+  }
+}
+
+export async function uploadResource(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) {
+    await removeUploadedFile(req.file?.filename);
+    return;
+  }
+
+  const parsed = createResourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    await removeUploadedFile(req.file?.filename);
+    res.status(400).json({
+      message: "Invalid resource data",
+      errors: parsed.error.flatten(),
+    });
+    return;
+  }
+
+  if (!req.file) {
+    res.status(400).json({ message: "A PDF file is required." });
+    return;
+  }
+
+  try {
+    if (!(await validateUploadedPdf(req.file.filename))) {
+      res.status(400).json({ message: "Only valid PDF files are allowed." });
+      return;
+    }
+
+    const resource = await createResource(userId, parsed.data, {
+      fileName: req.file.filename,
+      fileSize: req.file.size,
+    });
+
+    res.status(201).json({
+      message: "Resource uploaded successfully",
+      resource,
+    });
+  } catch (error) {
+    await removeUploadedFile(req.file.filename);
+    handleError(res, error, "Failed to upload resource");
+  }
+}
+
+export async function removeResource(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = resourceIdSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid resource ID" });
+    return;
+  }
+
+  try {
+    await deleteResource(userId, parsed.data.id);
+    res.json({ message: "Resource deleted successfully" });
+  } catch (error) {
+    handleError(res, error, "Failed to delete resource");
+  }
+}
+
+export async function getCourses(req: AuthenticatedRequest, res: Response) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  try {
+    res.json(await listCourses(userId));
+  } catch (error) {
+    handleError(res, error, "Failed to fetch courses");
+  }
+}
+
+export async function addCourse(req: AuthenticatedRequest, res: Response) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = createCourseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      message: "Invalid course data",
+      errors: parsed.error.flatten(),
+    });
+    return;
+  }
+
+  try {
+    res.status(201).json({ course: await createCourse(userId, parsed.data) });
+  } catch (error) {
+    handleError(res, error, "Failed to create course");
+  }
+}
+
+export async function serveResourceFile(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = resourceIdSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid resource ID" });
+    return;
+  }
+
+  try {
+    const shouldDownload = req.query.download === "1";
+    const resource = await getResourceFile(userId, parsed.data.id);
+    const absolutePath = await assertResourceFileReadable(resource.fileName);
+
+    if (shouldDownload) {
+      res.download(absolutePath, `${resource.title}.pdf`, (error) => {
+        if (error) {
+          if (res.headersSent) res.destroy(error);
+          else handleError(res, error, "Failed to download resource file");
+          return;
+        }
+
+        void recordResourceDownload(resource.id).catch((updateError) => {
+          console.error("Failed to record resource download", updateError);
+        });
+      });
+      return;
+    }
+
+    res.type("application/pdf").sendFile(absolutePath, (error) => {
+      if (!error) return;
+      if (res.headersSent) res.destroy(error);
+      else handleError(res, error, "Failed to open resource file");
+    });
+  } catch (error) {
+    handleError(res, error, "Failed to open resource file");
+  }
+}

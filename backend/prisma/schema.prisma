@@ -55,6 +55,7 @@ model User {
   likes           Like[]
   clubMemberships ClubMember[]
   eventAttendance EventAttendee[]
+  studyResources  StudyResource[]
 
   @@index([institutionId])
   @@index([city])
@@ -275,7 +276,9 @@ model Institution {
   universityId String
   university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
 
-  users User[]
+  users          User[]
+  courses        Course[]
+  studyResources StudyResource[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -284,4 +287,68 @@ model Institution {
   @@index([city])
   @@index([country])
   @@index([universityId])
+}
+
+// ======================================================
+// STUDY RESOURCES
+// ======================================================
+
+enum ResourceType {
+  NOTES
+  SUMMARY
+  EXAM
+  EXERCISE
+  ASSIGNMENT
+  OTHER
+}
+
+model Course {
+  id   String  @id @default(uuid())
+  name String
+  code String?
+
+  institutionId String
+  institution   Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  resources StudyResource[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId])
+  @@index([institutionId, name])
+  @@index([institutionId, code])
+}
+
+model StudyResource {
+  id          String       @id @default(uuid())
+  title       String
+  description String?
+  fileUrl     String
+  fileName    String
+  fileSize    Int?
+  type        ResourceType
+
+  academicYear String?
+  professor    String?
+
+  uploaderId    String
+  institutionId String
+  courseId      String?
+
+  // Filesystem-backed resources must be deleted through the resource service.
+  uploader    User        @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  course      Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  views     Int @default(0)
+  downloads Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([institutionId, createdAt])
+  @@index([institutionId, type])
+  @@index([courseId])
+  @@index([uploaderId])
 }
