@@ -26,11 +26,33 @@ export const RESOURCE_UPLOAD_DIR = path.resolve(
   "resources",
 );
 
+const RESOURCE_FILE_NAME_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
+
+function getResourceFilePath(fileName: string) {
+  const safeFileName = path.basename(fileName);
+
+  if (
+    safeFileName !== fileName ||
+    !RESOURCE_FILE_NAME_PATTERN.test(safeFileName)
+  ) {
+    throw new Error("Invalid resource file name");
+  }
+
+  const filePath = path.resolve(RESOURCE_UPLOAD_DIR, safeFileName);
+
+  if (path.dirname(filePath) !== RESOURCE_UPLOAD_DIR) {
+    throw new Error("Resource file path is outside the upload directory");
+  }
+
+  return filePath;
+}
+
 async function removeUploadedFile(fileName?: string) {
   if (!fileName) return;
 
   try {
-    await unlink(path.join(RESOURCE_UPLOAD_DIR, path.basename(fileName)));
+    await unlink(getResourceFilePath(fileName));
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
       console.error("Failed to remove resource file", error);
@@ -135,7 +157,9 @@ export async function uploadResource(
   }
 
   try {
-    if (!(await isPdf(req.file.path))) {
+    const uploadedFilePath = getResourceFilePath(req.file.filename);
+
+    if (!(await isPdf(uploadedFilePath))) {
       await removeUploadedFile(req.file.filename);
       res.status(400).json({ message: "Only valid PDF files are allowed." });
       return;
@@ -225,10 +249,7 @@ export async function serveResourceFile(
   try {
     const shouldDownload = req.query.download === "1";
     const resource = await getResourceFile(userId, parsed.data.id, shouldDownload);
-    const absolutePath = path.join(
-      RESOURCE_UPLOAD_DIR,
-      path.basename(resource.fileName),
-    );
+    const absolutePath = getResourceFilePath(resource.fileName);
 
     if (shouldDownload) {
       res.download(absolutePath, `${resource.title}.pdf`);
