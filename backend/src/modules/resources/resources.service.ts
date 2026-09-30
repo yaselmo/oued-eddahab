@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, ResourceType } from "../../generated/prisma/client.js";
 import prisma from "../../lib/prisma.js";
+import { removeResourceFile } from "./resources.files.js";
 import type {
   CreateCourseInput,
   CreateResourceInput,
@@ -188,8 +189,10 @@ export async function deleteResource(userId: string, id: string) {
     );
   }
 
+  // Remove the filesystem asset before its database reference. If cleanup
+  // fails, keep the row so the file is not silently orphaned.
+  await removeResourceFile(resource.fileName);
   await prisma.studyResource.delete({ where: { id: resource.id } });
-  return resource.fileName;
 }
 
 export async function listCourses(userId: string) {
@@ -219,7 +222,6 @@ export async function createCourse(userId: string, input: CreateCourseInput) {
 export async function getResourceFile(
   userId: string,
   id: string,
-  countDownload: boolean,
 ) {
   const { institutionId } = await getInstitutionContext(userId);
   const resource = await prisma.studyResource.findFirst({
@@ -231,12 +233,12 @@ export async function getResourceFile(
     throw new ResourceServiceError("Resource not found", 404);
   }
 
-  if (countDownload) {
-    await prisma.studyResource.update({
-      where: { id: resource.id },
-      data: { downloads: { increment: 1 } },
-    });
-  }
-
   return resource;
+}
+
+export async function recordResourceDownload(id: string) {
+  await prisma.studyResource.update({
+    where: { id },
+    data: { downloads: { increment: 1 } },
+  });
 }

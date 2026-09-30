@@ -19,7 +19,7 @@ export const listResourcesSchema = z.object({
   search: optionalText(200),
   type: resourceTypeSchema.optional(),
   courseId: z.string().uuid().optional(),
-});
+}).strict();
 
 export const resourceIdSchema = z.object({
   id: z.string().uuid(),
@@ -35,12 +35,12 @@ export const createResourceSchema = z.object({
     (value) => value === "" ? undefined : value,
     z.string().uuid().optional(),
   ),
-});
+}).strict();
 
 export const createCourseSchema = z.object({
   name: z.string().trim().min(1).max(150),
   code: optionalText(50),
-});
+}).strict();
 
 export type CreateResourceInput = z.infer<typeof createResourceSchema>;
 export type CreateCourseInput = z.infer<typeof createCourseSchema>;

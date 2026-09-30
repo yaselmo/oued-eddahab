@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { storeAuthToken } from "../hooks/use-auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { apiUrl } from "../lib/api";
 const inputClass =
   "mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 disabled:cursor-not-allowed disabled:bg-zinc-100";
 
@@ -33,7 +32,7 @@ export default function RegisterPage() {
 
     async function loadCities() {
       try {
-        const response = await fetch(`${API_URL}/api/cities`, {
+        const response = await fetch(apiUrl("/api/cities"), {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error();
@@ -61,7 +60,7 @@ export default function RegisterPage() {
       setLocationError("");
       try {
         const response = await fetch(
-          `${API_URL}/api/institutions?city=${encodeURIComponent(selectedCity)}`,
+          apiUrl(`/api/institutions?city=${encodeURIComponent(selectedCity)}`),
           { signal: controller.signal },
         );
         if (!response.ok) throw new Error();
@@ -116,7 +115,7 @@ export default function RegisterPage() {
     };
 
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const response = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

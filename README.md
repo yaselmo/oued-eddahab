@@ -255,8 +255,39 @@ cd frontend
 Install dependencies:
 
 ```bash
-npm install
+bun install
+cp .env.example .env.local
 ```
+
+`NEXT_PUBLIC_API_URL` is the backend origin only. Do not include `/api`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000
+```
+
+Frontend API calls add the `/api/...` path through the shared API URL helper.
+
+---
+
+## Current Institution and Resource Security Model
+
+Institution selection is currently **self-declared during registration**. The
+application does not yet verify enrollment, an institutional email domain, or
+institution membership. Institution-scoped Study Resources are therefore an
+MVP personalization/filtering feature, not a security or privacy boundary.
+
+Resource API requests never accept an institution scope from the client. Each
+request resolves the authenticated JWT user in the database and uses that
+user's current `institutionId`. Uploads also derive `uploaderId` and
+`institutionId` server-side, and a selected course must belong to the same
+institution.
+
+Uploaded PDFs are stored in `backend/uploads/resources`, resolved relative to
+the backend module rather than the process launch directory. Because these are
+filesystem-backed records, database relations from `StudyResource` to its
+uploader and institution use restrictive deletes. Parent records cannot be
+deleted until their resources have been removed through application cleanup;
+course deletion keeps resources and clears their optional course relation.
 
 Create `.env.local` if needed:
 
@@ -267,7 +298,7 @@ touch .env.local
 Example:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
 ---
@@ -472,7 +503,7 @@ Stop the process or run the application on another port.
 Verify that the frontend environment variable points to the backend:
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
 After changing `.env.local`, restart the frontend development server.

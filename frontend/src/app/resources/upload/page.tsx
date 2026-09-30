@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import SiteNav from "../../components/site-nav";
 import { useAuthToken } from "../../hooks/use-auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { apiUrl } from "../../lib/api";
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 type Course = {
@@ -37,6 +36,7 @@ export default function UploadResourcePage() {
   const { token, checkingAuth, redirectToLogin } = useAuthToken();
   const [courses, setCourses] = useState<Course[]>([]);
   const [institution, setInstitution] = useState<Institution | null>(null);
+  const [dataToken, setDataToken] = useState<string | null>(null);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -48,7 +48,7 @@ export default function UploadResourcePage() {
 
     async function loadCourses() {
       try {
-        const response = await fetch(`${API_URL}/api/resources/courses`, {
+        const response = await fetch(apiUrl("/api/resources/courses"), {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         });
@@ -66,6 +66,8 @@ export default function UploadResourcePage() {
         const result = data as { courses: Course[]; institution: Institution };
         setCourses(result.courses);
         setInstitution(result.institution);
+        setError("");
+        setDataToken(token);
       } catch (fetchError) {
         if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
           return;
@@ -75,6 +77,7 @@ export default function UploadResourcePage() {
             ? fetchError.message
             : "Unable to load courses.",
         );
+        setDataToken(token);
       } finally {
         if (!controller.signal.aborted) setLoadingCourses(false);
       }
@@ -114,7 +117,7 @@ export default function UploadResourcePage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/resources`, {
+      const response = await fetch(apiUrl("/api/resources"), {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -146,7 +149,7 @@ export default function UploadResourcePage() {
   const inputClass =
     "mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100";
 
-  if (checkingAuth || !token) {
+  if (checkingAuth || !token || dataToken !== token) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-zinc-50 text-zinc-500">
         Checking your session…

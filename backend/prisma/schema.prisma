@@ -336,8 +336,9 @@ model StudyResource {
   institutionId String
   courseId      String?
 
-  uploader    User        @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  // Filesystem-backed resources must be deleted through the resource service.
+  uploader    User        @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   course      Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
 
   views     Int @default(0)

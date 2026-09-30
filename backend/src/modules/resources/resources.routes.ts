@@ -11,10 +11,10 @@ import {
   getResourceById,
   getResources,
   removeResource,
-  RESOURCE_UPLOAD_DIR,
   serveResourceFile,
   uploadResource,
 } from "./resources.controller.js";
+import { RESOURCE_UPLOAD_DIR } from "./resources.files.js";
 
 mkdirSync(RESOURCE_UPLOAD_DIR, { recursive: true });
 

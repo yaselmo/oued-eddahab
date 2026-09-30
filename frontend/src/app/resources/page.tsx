@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import SiteNav from "../components/site-nav";
 import { useAuthToken } from "../hooks/use-auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { apiUrl } from "../lib/api";
 
 type ResourceType =
   | "NOTES"
@@ -75,6 +74,7 @@ export default function ResourcesPage() {
   const [institution, setInstitution] = useState<Institution | null>(null);
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<ResourceType | "ALL">("ALL");
+  const [dataToken, setDataToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -92,7 +92,7 @@ export default function ResourcesPage() {
 
       try {
         const response = await fetch(
-          `${API_URL}/api/resources${query.size ? `?${query}` : ""}`,
+          apiUrl(`/api/resources${query.size ? `?${query}` : ""}`),
           {
             headers: { Authorization: `Bearer ${token}` },
             signal: controller.signal,
@@ -115,6 +115,7 @@ export default function ResourcesPage() {
         };
         setResources(result.resources);
         setInstitution(result.institution);
+        setDataToken(token);
       } catch (fetchError) {
         if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
           return;
@@ -124,6 +125,7 @@ export default function ResourcesPage() {
             ? fetchError.message
             : "Unable to load resources.",
         );
+        setDataToken(token);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -143,6 +145,11 @@ export default function ResourcesPage() {
     );
   }
 
+  const hasCurrentData = dataToken === token;
+  const visibleResources = hasCurrentData ? resources : [];
+  const visibleInstitution = hasCurrentData ? institution : null;
+  const visibleError = hasCurrentData ? error : "";
+
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
       <SiteNav />
@@ -152,7 +159,7 @@ export default function ResourcesPage() {
           <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                {institution?.abbreviation ?? institution?.name ?? "Your institution"}
+                {visibleInstitution?.abbreviation ?? visibleInstitution?.name ?? "Your institution"}
               </p>
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
                 Study Resources
@@ -201,12 +208,12 @@ export default function ResourcesPage() {
           ))}
         </div>
 
-        {error ? (
+        {visibleError ? (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">
             <h2 className="font-semibold">Resources are unavailable</h2>
-            <p className="mt-1 text-sm">{error}</p>
+            <p className="mt-1 text-sm">{visibleError}</p>
           </div>
-        ) : loading ? (
+        ) : loading || !hasCurrentData ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[0, 1, 2].map((item) => (
               <div
@@ -215,7 +222,7 @@ export default function ResourcesPage() {
               />
             ))}
           </div>
-        ) : resources.length === 0 ? (
+        ) : visibleResources.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-6 py-16 text-center">
             <h2 className="text-lg font-semibold">No resources found</h2>
             <p className="mt-2 text-sm text-zinc-500">
@@ -224,7 +231,7 @@ export default function ResourcesPage() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {resources.map((resource) => (
+            {visibleResources.map((resource) => (
               <Link
                 key={resource.id}
                 href={`/resources/${resource.id}`}

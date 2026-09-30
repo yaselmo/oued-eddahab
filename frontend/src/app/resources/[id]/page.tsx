@@ -5,8 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import SiteNav from "../../components/site-nav";
 import { useAuthToken } from "../../hooks/use-auth";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { apiUrl } from "../../lib/api";
 
 type Resource = {
   id: string;
@@ -56,6 +55,7 @@ export default function ResourceDetailPage() {
   const params = useParams<{ id: string }>();
   const { token, checkingAuth, redirectToLogin } = useAuthToken();
   const [resource, setResource] = useState<Resource | null>(null);
+  const [dataToken, setDataToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [opening, setOpening] = useState<"open" | "download" | null>(null);
   const [error, setError] = useState("");
@@ -68,7 +68,7 @@ export default function ResourceDetailPage() {
 
     async function loadResource() {
       try {
-        const response = await fetch(`${API_URL}/api/resources/${params.id}`, {
+        const response = await fetch(apiUrl(`/api/resources/${params.id}`), {
           headers: { Authorization: `Bearer ${token}` },
           signal: controller.signal,
         });
@@ -81,6 +81,9 @@ export default function ResourceDetailPage() {
         const data: unknown = await response.json();
         if (response.status === 403 || response.status === 404) {
           setUnavailable(true);
+          setResource(null);
+          setError("");
+          setDataToken(token);
           return;
         }
         if (!response.ok) {
@@ -88,6 +91,9 @@ export default function ResourceDetailPage() {
         }
 
         setResource((data as { resource: Resource }).resource);
+        setUnavailable(false);
+        setError("");
+        setDataToken(token);
       } catch (fetchError) {
         if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
           return;
@@ -97,6 +103,7 @@ export default function ResourceDetailPage() {
             ? fetchError.message
             : "Unable to load this resource.",
         );
+        setDataToken(token);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -123,7 +130,7 @@ export default function ResourceDetailPage() {
       const filePath = download
         ? `${resource.fileUrl}${separator}download=1`
         : resource.fileUrl;
-      const response = await fetch(`${API_URL}${filePath}`, {
+      const response = await fetch(apiUrl(filePath), {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -165,7 +172,7 @@ export default function ResourceDetailPage() {
     );
   }
 
-  if (loading) {
+  if (loading || dataToken !== token) {
     return (
       <main className="min-h-screen bg-zinc-50 text-zinc-950">
         <SiteNav />

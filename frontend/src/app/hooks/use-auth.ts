@@ -7,8 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+import { apiUrl } from "../lib/api";
 const AUTH_EVENT = "oued-eddahab-auth-change";
 
 function subscribeToAuth(callback: () => void) {
@@ -95,19 +94,22 @@ export function useAuthToken() {
 export function useAuthenticatedProfile() {
   const auth = useAuthToken();
   const { token, redirectToLogin } = auth;
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [error, setError] = useState("");
+  const [profileState, setProfileState] = useState<{
+    token: string;
+    profile: Profile | null;
+    error: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!token) return;
+    const profileToken = token;
 
     const controller = new AbortController();
 
     async function loadProfile() {
       try {
-        const response = await fetch(`${API_URL}/api/profile/me`, {
-          headers: { Authorization: `Bearer ${token}` },
+        const response = await fetch(apiUrl("/api/profile/me"), {
+          headers: { Authorization: `Bearer ${profileToken}` },
           signal: controller.signal,
         });
 
@@ -118,7 +120,9 @@ export function useAuthenticatedProfile() {
 
         if (!response.ok) throw new Error("Unable to load your profile.");
         const data = (await response.json()) as { profile: Profile };
-        setProfile(data.profile);
+        if (!controller.signal.aborted) {
+          setProfileState({ token: profileToken, profile: data.profile, error: "" });
+        }
       } catch (profileError) {
         if (
           profileError instanceof DOMException &&
@@ -126,13 +130,14 @@ export function useAuthenticatedProfile() {
         ) {
           return;
         }
-        setError(
-          profileError instanceof Error
-            ? profileError.message
-            : "Unable to load your profile.",
-        );
-      } finally {
-        if (!controller.signal.aborted) setLoadingProfile(false);
+        setProfileState({
+          token: profileToken,
+          profile: null,
+          error:
+            profileError instanceof Error
+              ? profileError.message
+              : "Unable to load your profile.",
+        });
       }
     }
 
@@ -140,10 +145,14 @@ export function useAuthenticatedProfile() {
     return () => controller.abort();
   }, [redirectToLogin, token]);
 
+  const hasCurrentProfile = Boolean(
+    token && profileState?.token === token,
+  );
+
   return {
     ...auth,
-    profile,
-    error,
-    loading: auth.checkingAuth || loadingProfile,
+    profile: hasCurrentProfile ? profileState?.profile ?? null : null,
+    error: hasCurrentProfile ? profileState?.error ?? "" : "",
+    loading: auth.checkingAuth || Boolean(token && !hasCurrentProfile),
   };
 }
