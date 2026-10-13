@@ -1,3 +1,4 @@
+
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import type { NextFunction, Request, Response } from "express";
@@ -36,7 +37,9 @@ const logoUpload = multer({
   limits: { fileSize: CLUB_LOGO_MAX_SIZE, files: 1 },
   fileFilter: (_req, file, callback) => {
     if (!(file.mimetype in LOGO_EXTENSIONS)) {
-      callback(new Error("Le logo doit être une image PNG, JPEG ou WebP."));
+      callback(
+        new Error("Le logo doit être une image PNG, JPEG ou WebP."),
+      );
       return;
     }
 
@@ -44,30 +47,42 @@ const logoUpload = multer({
   },
 });
 
-function uploadLogo(req: Request, res: Response, next: NextFunction) {
+function uploadLogo(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   logoUpload.single("logo")(req, res, (error) => {
     if (!error) {
       next();
       return;
     }
 
-    if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
-      res.status(400).json({ message: "Le logo doit faire 2 Mo maximum." });
+    if (
+      error instanceof multer.MulterError &&
+      error.code === "LIMIT_FILE_SIZE"
+    ) {
+      res.status(400).json({
+        message: "Le logo doit faire 2 Mo maximum.",
+      });
       return;
     }
 
     res.status(400).json({
-      message: error instanceof Error ? error.message : "Logo invalide.",
+      message: error instanceof Error
+        ? error.message
+        : "Logo invalide.",
     });
   });
 }
 
 const router = Router();
 
-// Logos are public (images cannot send a token) and not rate limited, because
-// a page of club cards loads one image per card.
-router.get("/:id/logo", serveClubLogo);
+// Logos remain public, but requests are rate-limited
+// to prevent excessive file system access.
+router.get("/:id/logo", apiRateLimiter, serveClubLogo);
 
+// The remaining routes require authentication.
 router.use(apiRateLimiter, requireAuth);
 
 router.get("/", getClubs);
