@@ -50,16 +50,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  posts                Post[]
-  comments             Comment[]
-  likes                Like[]
-  clubMemberships      ClubMember[]
-  eventAttendance      EventAttendee[]
-  studyResources       StudyResource[]
-  createdCommunities   Community[]       @relation("CommunityCreator")
+
+  // Posts
+  posts     Post[]
+  comments  Comment[]
+  likes     Like[]
+  postVotes PostVote[]
+
+  // Clubs
+  clubMemberships ClubMember[]
+  clubsCreated    Club[] @relation("ClubCreator")
+  clubsReviewed   Club[] @relation("ClubReviewer")
+
+  // Communities
+  createdCommunities   Community[] @relation("CommunityCreator")
   communityMemberships CommunityMember[]
-  postVotes            PostVote[]
-  resourceViews        ResourceView[]
+
+  // Events
+  eventAttendance EventAttendee[]
+
+  // Study resources
+  studyResources StudyResource[]
+  resourceViews  ResourceView[]
+
 
   @@index([institutionId])
   @@index([city])
@@ -83,6 +96,23 @@ enum Sex {
 // CLUBS
 // ======================================================
 
+enum ClubStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ClubCategory {
+  TECH
+  SPORT
+  CULTURE
+  ART
+  SCIENCE
+  SOCIAL
+  ENTREPRENEURSHIP
+  OTHER
+}
+
 model Club {
   id          String  @id @default(uuid())
   name        String
@@ -90,12 +120,38 @@ model Club {
   description String?
   logoUrl     String?
 
+  // Logo stored on disk by the clubs module (served through /api/clubs/:id/logo).
+  logoFileName String?
+
+  category       ClubCategory @default(OTHER)
+  activities     String?
+  additionalInfo String?
+
+  responsibleName  String
+  responsibleEmail String
+
+  // A club is public only once an administrator of its institution approves it.
+  status          ClubStatus @default(PENDING)
+  rejectionReason String?
+  reviewedAt      DateTime?
+
+  institutionId String
+  createdById   String
+  reviewedById  String?
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  createdBy   User        @relation("ClubCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  reviewedBy  User?       @relation("ClubReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   members ClubMember[]
   posts   Post[]
   events  Event[]
+
+  @@index([institutionId, status])
+  @@index([createdById])
 }
 
 // ======================================================
@@ -367,6 +423,7 @@ model Institution {
   courses        Course[]
   studyResources StudyResource[]
   communities    Community[]
+  clubs          Club[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
