@@ -20,9 +20,10 @@ import {
   recordResourceView,
 } from "./resources.service.js";
 import {
-  assertResourceFileReadable,
   generateResourceThumbnail,
   getOrCreateResourceThumbnail,
+  openResourceFile,
+  openResourceThumbnail,
   removeResourceAssets,
   validateUploadedPdf,
 } from "./resources.files.js";
@@ -52,6 +53,19 @@ function requireUserId(req: AuthenticatedRequest, res: Response) {
   }
 
   return req.userId;
+}
+
+function streamOpenFile(
+  res: Response,
+  handle: Awaited<ReturnType<typeof openResourceFile>>,
+) {
+  const stream = handle.createReadStream();
+
+  stream.on("error", (error) => {
+    if (res.headersSent) res.destroy(error);
+    else handleError(res, error, "Failed to read resource file");
+  });
+  stream.pipe(res);
 }
 
 export async function getResources(req: AuthenticatedRequest, res: Response) {
@@ -236,29 +250,21 @@ export async function serveResourceFile(
   try {
     const shouldDownload = req.query.download === "1";
     const resource = await getResourceFile(userId, parsed.data.id);
-    const absolutePath = await assertResourceFileReadable(resource.fileName);
+    const handle = await openResourceFile(resource.fileName);
 
     if (shouldDownload) {
-      res.download(absolutePath, `${resource.title}.pdf`, (error) => {
-        if (error) {
-          if (res.headersSent) res.destroy(error);
-          else handleError(res, error, "Failed to download resource file");
-          return;
-        }
-
+      res.attachment(`${resource.title}.pdf`);
+      res.once("finish", () => {
         void recordResourceDownload(resource.id).catch((updateError) => {
           console.error("Failed to record resource download", updateError);
         });
       });
-      return;
+    } else {
+      res.setHeader("Content-Disposition", "inline");
     }
 
-    res.setHeader("Content-Disposition", "inline");
-    res.type("application/pdf").sendFile(absolutePath, (error) => {
-      if (!error) return;
-      if (res.headersSent) res.destroy(error);
-      else handleError(res, error, "Failed to open resource file");
-    });
+    res.type("application/pdf");
+    streamOpenFile(res, handle);
   } catch (error) {
     handleError(res, error, "Failed to open resource file");
   }
@@ -282,13 +288,11 @@ export async function serveResourceThumbnail(
     const resource = await getResourceFile(userId, parsed.data.id);
 
     try {
-      const thumbnailPath = await getOrCreateResourceThumbnail(resource.fileName);
+      await getOrCreateResourceThumbnail(resource.fileName);
+      const handle = await openResourceThumbnail(resource.fileName);
       res.setHeader("Cache-Control", "private, max-age=86400");
-      res.type("image/png").sendFile(thumbnailPath, (error) => {
-        if (!error) return;
-        if (res.headersSent) res.destroy(error);
-        else handleError(res, error, "Failed to open resource thumbnail");
-      });
+      res.type("image/png");
+      streamOpenFile(res, handle);
     } catch (thumbnailError) {
       console.warn("Resource thumbnail is unavailable", thumbnailError);
       res.status(404).json({ message: "Resource preview is unavailable" });

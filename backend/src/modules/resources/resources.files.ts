@@ -1,7 +1,15 @@
 import { constants } from "node:fs";
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { access, mkdir, open, rename, unlink } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  rename,
+  unlink,
+  type FileHandle,
+} from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -18,60 +26,113 @@ export const RESOURCE_THUMBNAIL_DIR = path.resolve(
 const RESOURCE_FILE_NAME_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
 
-export function getResourceFilePath(fileName: string) {
-  const safeFileName = path.basename(fileName);
-
-  if (
-    safeFileName !== fileName ||
-    !RESOURCE_FILE_NAME_PATTERN.test(safeFileName)
-  ) {
+function assertResourceFileName(fileName: string) {
+  if (!RESOURCE_FILE_NAME_PATTERN.test(fileName)) {
     throw new Error("Invalid resource file name");
   }
 
-  const filePath = path.resolve(RESOURCE_UPLOAD_DIR, safeFileName);
+  return fileName;
+}
 
-  if (path.dirname(filePath) !== RESOURCE_UPLOAD_DIR) {
-    throw new Error("Resource file path is outside the upload directory");
+function resolveStoragePath(storageDirectory: string, fileName: string) {
+  const filePath = path.resolve(storageDirectory, fileName);
+  const relativePath = path.relative(storageDirectory, filePath);
+
+  if (
+    relativePath === "" ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new Error("Resource file path is outside its storage directory");
   }
 
   return filePath;
 }
 
+async function assertRegularStorageFile(
+  storageDirectory: string,
+  filePath: string,
+) {
+  const fileStats = await lstat(filePath);
+  if (fileStats.isSymbolicLink() || !fileStats.isFile()) {
+    throw new Error("Resource asset must be a regular file");
+  }
+
+  const [canonicalDirectory, canonicalFile] = await Promise.all([
+    realpath(storageDirectory),
+    realpath(filePath),
+  ]);
+  const relativePath = path.relative(canonicalDirectory, canonicalFile);
+
+  if (
+    relativePath === "" ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath)
+  ) {
+    throw new Error("Resource asset resolves outside its storage directory");
+  }
+}
+
+async function openRegularStorageFile(
+  storageDirectory: string,
+  filePath: string,
+) {
+  await assertRegularStorageFile(storageDirectory, filePath);
+
+  const handle = await open(
+    filePath,
+    constants.O_RDONLY | constants.O_NOFOLLOW,
+  );
+
+  try {
+    if (!(await handle.stat()).isFile()) {
+      throw new Error("Resource asset must be a regular file");
+    }
+
+    return handle;
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
+
+async function removeStorageFile(filePath: string) {
+  try {
+    const fileStats = await lstat(filePath);
+    if (!fileStats.isFile() && !fileStats.isSymbolicLink()) {
+      throw new Error("Resource asset must be a file");
+    }
+
+    // unlink removes a final symbolic-link entry rather than following it.
+    await unlink(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+export function getResourceFilePath(fileName: string) {
+  const validatedFileName = assertResourceFileName(fileName);
+  return resolveStoragePath(RESOURCE_UPLOAD_DIR, validatedFileName);
+}
+
 export function getResourceThumbnailPath(fileName: string) {
-  // Validate the server-generated PDF name before deriving another file path.
-  getResourceFilePath(fileName);
-  const thumbnailName = `${fileName.slice(0, -4)}.png`;
-  const thumbnailPath = path.resolve(RESOURCE_THUMBNAIL_DIR, thumbnailName);
-
-  if (path.dirname(thumbnailPath) !== RESOURCE_THUMBNAIL_DIR) {
-    throw new Error("Resource thumbnail path is outside the thumbnail directory");
-  }
-
-  return thumbnailPath;
+  const validatedFileName = assertResourceFileName(fileName);
+  const thumbnailName = `${validatedFileName.slice(0, -4)}.png`;
+  return resolveStoragePath(RESOURCE_THUMBNAIL_DIR, thumbnailName);
 }
 
-async function removeResourceFile(fileName?: string) {
-  if (!fileName) return;
-
-  try {
-    await unlink(getResourceFilePath(fileName));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
+async function removeResourceFile(fileName: string) {
+  await removeStorageFile(getResourceFilePath(fileName));
 }
 
-async function removeResourceThumbnail(fileName?: string) {
-  if (!fileName) return;
-
-  try {
-    await unlink(getResourceThumbnailPath(fileName));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
+async function removeResourceThumbnail(fileName: string) {
+  await removeStorageFile(getResourceThumbnailPath(fileName));
 }
 
 export async function removeResourceAssets(fileName?: string) {
-  if (!fileName) return;
+  if (fileName === undefined) return;
 
   // Remove the derived asset first. If deleting the PDF subsequently fails,
   // the thumbnail can still be recreated from the intact source document.
@@ -81,14 +142,29 @@ export async function removeResourceAssets(fileName?: string) {
 
 export async function assertResourceFileReadable(fileName: string) {
   const filePath = getResourceFilePath(fileName);
-  await access(filePath, constants.R_OK);
+  const handle = await openRegularStorageFile(RESOURCE_UPLOAD_DIR, filePath);
+  await handle.close();
   return filePath;
 }
 
 async function assertResourceThumbnailReadable(fileName: string) {
   const thumbnailPath = getResourceThumbnailPath(fileName);
-  await access(thumbnailPath, constants.R_OK);
+  const handle = await openRegularStorageFile(
+    RESOURCE_THUMBNAIL_DIR,
+    thumbnailPath,
+  );
+  await handle.close();
   return thumbnailPath;
+}
+
+export function openResourceFile(fileName: string): Promise<FileHandle> {
+  const filePath = getResourceFilePath(fileName);
+  return openRegularStorageFile(RESOURCE_UPLOAD_DIR, filePath);
+}
+
+export function openResourceThumbnail(fileName: string): Promise<FileHandle> {
+  const thumbnailPath = getResourceThumbnailPath(fileName);
+  return openRegularStorageFile(RESOURCE_THUMBNAIL_DIR, thumbnailPath);
 }
 
 export async function generateResourceThumbnail(fileName: string) {
@@ -123,7 +199,11 @@ export async function generateResourceThumbnail(fileName: string) {
       ],
       { timeout: 20_000, maxBuffer: 1024 * 1024 },
     );
-    await access(temporaryPath, constants.R_OK);
+    const temporaryHandle = await openRegularStorageFile(
+      RESOURCE_THUMBNAIL_DIR,
+      temporaryPath,
+    );
+    await temporaryHandle.close();
     await rename(temporaryPath, thumbnailPath);
     return thumbnailPath;
   } finally {
@@ -146,8 +226,7 @@ export async function getOrCreateResourceThumbnail(fileName: string) {
 }
 
 export async function isValidPdf(fileName: string) {
-  const filePath = getResourceFilePath(fileName);
-  const handle = await open(filePath, "r");
+  const handle = await openResourceFile(fileName);
 
   try {
     const { size } = await handle.stat();
