@@ -1,569 +1,216 @@
-# oued-eddahab# Oued Eddahab
+# Oued Eddahab
 
-Oued Eddahab is a university community platform where students can discover clubs, meet people, and follow university news and activities.
+Oued Eddahab is a community platform for university students in Morocco. It
+combines student profiles, institution-scoped study resources, and discussion
+communities in one application.
 
-## Tech Stack
+## Current features
+
+- Account registration and JWT authentication
+- Student profiles linked to Moroccan institutions
+- Institution and city discovery
+- Protected PDF study-resource uploads, previews, viewing, and downloads
+- Discussion communities, memberships, posts, comments, and voting
+- Club and event data models, with a placeholder clubs interface
+
+Institution selection is currently self-declared. It personalizes and scopes
+resource access, but it is not proof of enrollment.
+
+## Architecture
+
+~~~text
+.
+├── frontend/                Next.js App Router application
+├── backend/
+│   ├── prisma/              Schema, migrations, and university seed data
+│   ├── src/
+│   │   ├── middleware/      Authentication and rate limiting
+│   │   └── modules/         API feature modules
+│   └── test/                Bun tests
+├── .github/workflows/       CI and CodeQL
+└── docker-compose.yml       Local PostgreSQL
+~~~
 
 ### Frontend
-- Next.js 16
-- React
+
+- Next.js 16 and React 19
 - TypeScript
-- Tailwind CSS
+- Tailwind CSS 4
+- App Router pages under **frontend/src/app**
 
 ### Backend
-- Bun
-- Node.js / TypeScript
-- Express
-- Prisma ORM
-- PostgreSQL
-- Zod
-- Argon2
-- JSON Web Tokens (JWT)
 
-### Development
-- Docker / Docker Compose
-- PostgreSQL 17
+- Bun and TypeScript
+- Express 5
+- Prisma 7 with PostgreSQL
+- Zod validation
+- Argon2 password hashing
+- JSON Web Tokens
+- Multer for PDF uploads
 
----
+## Prerequisites
 
-## Project Structure
-
-```text
-oued-eddahab/
-├── .github/
-│   └── workflows/
-│       └── ...
-│
-├── backend/
-│   ├── prisma/
-│   │   ├── migrations/
-│   │   └── schema.prisma
-│   │
-│   ├── src/
-│   │   ├── generated/
-│   │   │   └── prisma/
-│   │   │
-│   │   ├── lib/
-│   │   │   └── prisma.ts
-│   │   │
-│   │   ├── modules/
-│   │   │   └── auth/
-│   │   │       ├── auth.controller.ts
-│   │   │       ├── auth.routes.ts
-│   │   │       ├── auth.service.ts
-│   │   │       └── ...
-│   │   │
-│   │   ├── app.ts
-│   │   └── server.ts
-│   │
-│   ├── .env
-│   ├── package.json
-│   ├── bun.lock
-│   ├── prisma7.config.ts
-│   └── tsconfig.json
-│
-├── frontend/
-│   ├── public/
-│   │   └── ...
-│   │
-│   ├── src/
-│   │   └── app/
-│   │       ├── login/
-│   │       │   └── page.tsx
-│   │       ├── register/
-│   │       │   └── page.tsx
-│   │       ├── profile/
-│   │       │   └── page.tsx
-│   │       ├── globals.css
-│   │       ├── layout.tsx
-│   │       └── page.tsx
-│   │
-│   ├── .env.local
-│   ├── next.config.ts
-│   ├── package.json
-│   └── tsconfig.json
-│
-├── docker-compose.yml
-├── .gitignore
-└── README.md
-```
-
-> The structure may grow as new modules such as clubs, posts, newsletters, events, and student profiles are added.
-
----
-
-# Run Locally
-
-## 1. Prerequisites
-
-Install the following before starting:
-
-- [Git](https://git-scm.com/)
 - [Bun](https://bun.sh/)
-- [Node.js](https://nodejs.org/) if required by frontend tooling
-- [Docker](https://www.docker.com/)
-- Docker Compose
+- [Docker](https://www.docker.com/) with Docker Compose
+- [Poppler](https://poppler.freedesktop.org/) for **pdftocairo**, used to
+  generate resource thumbnails
 
-Check that they are installed:
+Node.js is required for the compiled backend production command.
 
-```bash
-git --version
-bun --version
-node --version
-docker --version
-docker compose version
-```
+## Local setup
 
----
+### 1. Start PostgreSQL
 
-## 2. Clone the Repository
+From the repository root:
 
-```bash
-git clone <repository-url>
-cd oued-eddahab
-```
-
-Replace `<repository-url>` with the GitHub repository URL.
-
----
-
-## 3. Start PostgreSQL
-
-From the project root:
-
-```bash
+~~~bash
 docker compose up -d
-```
+~~~
 
-Check that the database container is running:
+The local database is exposed at **localhost:5432**.
 
-```bash
-docker compose ps
-```
+### 2. Configure and start the backend
 
-The PostgreSQL database normally runs on:
-
-```text
-localhost:5432
-```
-
----
-
-## 4. Configure the Backend
-
-Go to the backend directory:
-
-```bash
+~~~bash
 cd backend
-```
-
-Install dependencies:
-
-```bash
 bun install
-```
+~~~
 
-Create the backend environment file if it does not already exist:
+Create **backend/.env**:
 
-```bash
-touch .env
-```
-
-Example:
-
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/oued_eddahab?schema=public"
-
+~~~env
+DATABASE_URL="postgresql://oued:oued_dev@localhost:5432/oued_eddahab?schema=public"
 PORT=5000
+JWT_SECRET="replace-with-a-long-random-secret"
+~~~
 
-JWT_SECRET="change-this-secret"
-```
+Generate the Prisma client, apply migrations, seed institutions, and start the
+development server:
 
-Make sure the database credentials match the values configured in `docker-compose.yml`.
-
----
-
-## 5. Generate the Prisma Client
-
-From `backend/`:
-
-```bash
+~~~bash
 bunx prisma generate
-```
-
----
-
-## 6. Apply Database Migrations
-
-```bash
-bunx prisma migrate dev
-```
-
-If the migrations already exist and you only want to apply them:
-
-```bash
 bunx prisma migrate deploy
-```
-
-Optional: inspect the database using Prisma Studio:
-
-```bash
-bunx prisma studio
-```
-
----
-
-## 7. Start the Backend
-
-From `backend/`:
-
-```bash
+bunx prisma db seed
 bun run dev
-```
+~~~
 
-The API runs on:
+The API is available at **http://localhost:5000**. Check it with:
 
-```text
-http://localhost:5000
-```
-
-Health check:
-
-```text
+~~~text
 GET http://localhost:5000/api/health
-```
+~~~
 
-Example response:
+### 3. Configure and start the frontend
 
-```json
-{
-  "status": "ok",
-  "message": "Oued Eddahab API is running"
-}
-```
+In another terminal:
 
----
-
-## 8. Configure the Frontend
-
-Open another terminal and go to the frontend directory:
-
-```bash
+~~~bash
 cd frontend
-```
-
-Install dependencies:
-
-```bash
 bun install
 cp .env.example .env.local
-```
-
-`NEXT_PUBLIC_API_URL` is the backend origin only. Do not include `/api`:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
-Frontend API calls add the `/api/...` path through the shared API URL helper.
-
----
-
-## Current Institution and Resource Security Model
-
-Institution selection is currently **self-declared during registration**. The
-application does not yet verify enrollment, an institutional email domain, or
-institution membership. Institution-scoped Study Resources are therefore an
-MVP personalization/filtering feature, not a security or privacy boundary.
-
-Resource API requests never accept an institution scope from the client. Each
-request resolves the authenticated JWT user in the database and uses that
-user's current `institutionId`. Uploads also derive `uploaderId` and
-`institutionId` server-side, and a selected course must belong to the same
-institution.
-
-Uploaded PDFs are stored in `backend/uploads/resources`, resolved relative to
-the backend module rather than the process launch directory. Because these are
-filesystem-backed records, database relations from `StudyResource` to its
-uploader and institution use restrictive deletes. Parent records cannot be
-deleted until their resources have been removed through application cleanup;
-course deletion keeps resources and clears their optional course relation.
-
-Create `.env.local` if needed:
-
-```bash
-touch .env.local
-```
-
-Example:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
----
-
-## 9. Start the Frontend
-
-From `frontend/`:
-
-```bash
-npm run dev
-```
-
-Open the URL shown by Next.js in your terminal.
-
-Usually:
-
-```text
-http://localhost:3000
-```
-
-If port `3000` is already in use, Next.js may automatically use another port such as:
-
-```text
-http://localhost:3001
-```
-
----
-
-# Local Development
-
-For normal development, keep three things running:
-
-### Terminal 1 — Database
-
-```bash
-docker compose up
-```
-
-### Terminal 2 — Backend
-
-```bash
-cd backend
 bun run dev
-```
+~~~
 
-### Terminal 3 — Frontend
+**NEXT_PUBLIC_API_URL** must contain the backend origin without an **/api**
+suffix:
 
-```bash
-cd frontend
-npm run dev
-```
+~~~env
+NEXT_PUBLIC_API_URL=http://localhost:5000
+~~~
 
----
+Open **http://localhost:3000**, or the alternate port printed by Next.js.
 
-# Useful Backend Commands
+## Useful commands
 
-Run these commands inside `backend/`.
+Run commands from the relevant package directory.
 
-### Type check
+### Frontend
 
-```bash
+~~~bash
+bun run dev
+bun run lint
 bunx tsc --noEmit
-```
+bun run build
+bun run start
+~~~
 
-### Generate Prisma client
+### Backend
 
-```bash
-bunx prisma generate
-```
-
-### Create a migration
-
-```bash
-bunx prisma migrate dev --name <migration-name>
-```
-
-### Open Prisma Studio
-
-```bash
-bunx prisma studio
-```
-
-### Install dependencies
-
-```bash
-bun install
-```
-
----
-
-# Useful Frontend Commands
-
-Run these commands inside `frontend/`.
-
-### Development server
-
-```bash
-npm run dev
-```
-
-### Production build
-
-```bash
-npm run build
-```
-
-### Start production build
-
-```bash
-npm start
-```
-
-### Lint
-
-```bash
-npm run lint
-```
-
----
-
-# Current Main Routes
-
-## Frontend
-
-```text
-/               Home
-/login          Login
-/register       Register
-/profile        User profile
-```
-
-## Backend
-
-```text
-GET  /api/health
-POST /api/auth/register
-POST /api/auth/login
-```
-
-Authentication-protected profile endpoints may also be available depending on the current branch.
-
----
-
-# Troubleshooting
-
-## Prisma client errors
-
-Regenerate the Prisma client:
-
-```bash
-cd backend
-bunx prisma generate
-```
-
-Then restart the backend.
-
----
-
-## Database connection error
-
-Make sure PostgreSQL is running:
-
-```bash
-docker compose ps
-```
-
-Restart it if necessary:
-
-```bash
-docker compose down
-docker compose up -d
-```
-
-Also verify `DATABASE_URL` in:
-
-```text
-backend/.env
-```
-
----
-
-## Port already in use
-
-Check which process is using a port:
-
-```bash
-lsof -i :5000
-```
-
-or:
-
-```bash
-lsof -i :3000
-```
-
-Stop the process or run the application on another port.
-
----
-
-## Frontend cannot reach backend
-
-Verify that the frontend environment variable points to the backend:
-
-```env
-NEXT_PUBLIC_API_URL=http://localhost:5000
-```
-
-After changing `.env.local`, restart the frontend development server.
-
----
-
-# Recommended First-Time Setup
-
-For a completely new local clone, the full setup is:
-
-```bash
-git clone <repository-url>
-cd oued-eddahab
-
-docker compose up -d
-
-cd backend
-bun install
-bunx prisma generate
-bunx prisma migrate dev
+~~~bash
 bun run dev
-```
+bun test
+bun run lint
+bunx tsc --noEmit
+bun run build
+bun run start
+~~~
 
-Then, in another terminal:
+### Prisma
 
-```bash
-cd oued-eddahab/frontend
-npm install
-npm run dev
-```
+~~~bash
+bunx prisma format
+bunx prisma validate
+bunx prisma generate
+bunx prisma migrate dev --name <migration-name>
+bunx prisma migrate deploy
+bunx prisma studio
+~~~
 
-You should then have:
+Do not use **prisma db push** as a replacement for committed migrations.
 
-```text
-Frontend: http://localhost:3000
-Backend:  http://localhost:5000
-Database: localhost:5432
-```
+## Main routes
 
----
+### Frontend
+
+| Route | Purpose |
+| --- | --- |
+| / | Authenticated home |
+| /login, /register | Authentication |
+| /profile | Student profile |
+| /resources | Institution study resources |
+| /resources/upload | PDF upload |
+| /resources/[id] | Protected PDF reader and download |
+| /community | Student discussion feed |
+| /community/discover | Community discovery |
+| /community/create | Community creation |
+| /community/c/[slug] | Community feed |
+| /community/post/create | Post creation |
+| /community/post/[id] | Post and comments |
+| /clubs | Clubs placeholder |
+
+### API groups
+
+- **/api/auth**: registration and login
+- **/api/profile**: authenticated profile
+- **/api/cities** and **/api/institutions**: institution discovery
+- **/api/resources**: courses, resources, protected files, thumbnails, views,
+  and downloads
+- **/api/communities**: community discovery and membership
+- **/api/posts** and **/api/comments**: discussions, voting, and comments
+
+## Resource security and storage
+
+Resource requests never accept an institution scope or uploader identity from
+the client. The backend derives both from the authenticated user. Selected
+courses must belong to the same institution.
+
+PDFs are stored under **backend/uploads/resources**; thumbnails are derived
+under **backend/uploads/resource-thumbnails**. Both directories are ignored and
+served only through authenticated endpoints. Resource relations use restrictive
+deletes so database records cannot silently outlive application-managed file
+cleanup.
+
+Views are unique per authenticated user and PDF. Metadata, thumbnails, and
+downloads do not record a view. The frontend records one only after the
+authenticated PDF blob loads in the browser viewer, while the database unique
+constraint remains the final concurrency safeguard.
 
 ## Contributing
 
-Create a feature branch before making changes:
+Read the root and package-specific **AGENTS.md** files before changing code.
+Keep changes focused and preserve existing API and database contracts.
 
-```bash
-git switch -c feat/my-feature
-```
-
-Before opening a pull request, run the relevant checks:
-
-```bash
-cd backend
-bunx tsc --noEmit
-```
-
-and:
-
-```bash
-cd frontend
-npm run lint
-npm run build
-```
+Run checks relevant to the change and report unrelated pre-existing failures
+instead of hiding them. Generated output such as **backend/dist**,
+**backend/src/generated/prisma**, **frontend/.next**, uploads, and local
+environment files must not be committed.

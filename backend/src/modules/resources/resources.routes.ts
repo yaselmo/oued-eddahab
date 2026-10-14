@@ -6,12 +6,14 @@ import multer from "multer";
 import { requireAuth } from "../../middleware/auth.middleware.js";
 import { apiRateLimiter } from "../../middleware/rate-limit.middleware.js";
 import {
+  addResourceView,
   addCourse,
   getCourses,
   getResourceById,
   getResources,
   removeResource,
   serveResourceFile,
+  serveResourceThumbnail,
   uploadResource,
 } from "./resources.controller.js";
 import { RESOURCE_UPLOAD_DIR } from "./resources.files.js";
@@ -43,6 +45,8 @@ router.use(apiRateLimiter, requireAuth);
 router.get("/courses", getCourses);
 router.post("/courses", addCourse);
 router.get("/:id/file", serveResourceFile);
+router.get("/:id/thumbnail", serveResourceThumbnail);
+router.post("/:id/view", addResourceView);
 router.get("/:id", getResourceById);
 router.delete("/:id", removeResource);
 router.get("/", getResources);

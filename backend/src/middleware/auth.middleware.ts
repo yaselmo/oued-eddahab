@@ -14,6 +14,29 @@ type JwtPayload = {
   userId: string;
 };
 
+function readUserId(authorization?: string) {
+  if (!authorization?.startsWith("Bearer ")) return null;
+
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return null;
+
+  try {
+    const payload = jwt.verify(authorization.slice(7), secret) as JwtPayload;
+    return payload.userId;
+  } catch {
+    return null;
+  }
+}
+
+export function optionalAuth(
+  req: AuthenticatedRequest,
+  _res: Response,
+  next: NextFunction,
+) {
+  req.userId = readUserId(req.headers.authorization) ?? undefined;
+  next();
+}
+
 export function requireAuth(
   req: AuthenticatedRequest,
   res: Response,
@@ -28,8 +51,6 @@ export function requireAuth(
     return;
   }
 
-  const token = authorization.slice(7);
-
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
@@ -40,12 +61,9 @@ export function requireAuth(
   }
 
   try {
-    const payload = jwt.verify(
-      token,
-      secret,
-    ) as JwtPayload;
+    req.userId = readUserId(authorization) ?? undefined;
 
-    req.userId = payload.userId;
+    if (!req.userId) throw new Error("Invalid token");
 
     next();
   } catch {

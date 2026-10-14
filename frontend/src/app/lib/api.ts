@@ -4,7 +4,7 @@ const configuredOrigin = (process.env.NEXT_PUBLIC_API_URL ?? "")
 
 // NEXT_PUBLIC_API_URL is an origin (for example http://localhost:5000), not
 // an /api-prefixed base path. Strip a legacy suffix defensively.
-export const API_ORIGIN = configuredOrigin.endsWith("/api")
+const API_ORIGIN = configuredOrigin.endsWith("/api")
   ? configuredOrigin.slice(0, -4)
   : configuredOrigin;
 

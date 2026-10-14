@@ -7,6 +7,7 @@ const links = [
   { href: "/", label: "Home" },
   { href: "/resources", label: "Resources" },
   { href: "/clubs", label: "Clubs" },
+  { href: "/community", label: "Community" },
   { href: "/profile", label: "Profile" },
 ];
 
@@ -22,7 +23,7 @@ export default function SiteNav() {
 
         <nav
           aria-label="Main navigation"
-          className="grid grid-cols-4 gap-1 rounded-xl bg-zinc-50 p-1 text-center text-xs font-medium text-zinc-600 sm:flex sm:text-sm"
+          className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-zinc-50 p-1 text-center text-xs font-medium text-zinc-600 sm:text-sm"
         >
           {links.map((link) => {
             const active =
@@ -35,11 +36,10 @@ export default function SiteNav() {
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-lg px-3 py-2 transition ${
-                  active
+                className={`whitespace-nowrap rounded-lg px-3 py-2 transition ${active
                     ? "bg-emerald-50 text-emerald-700"
                     : "hover:bg-white hover:text-zinc-950"
-                }`}
+                  }`}
               >
                 {link.label}
               </Link>

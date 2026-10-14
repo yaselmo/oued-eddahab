@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma, ResourceType } from "../../generated/prisma/client.js";
 import prisma from "../../lib/prisma.js";
-import { removeResourceFile } from "./resources.files.js";
+import { recordUniqueResourceView } from "./resource-views.domain.js";
+import { removeResourceAssets } from "./resources.files.js";
 import type {
   CreateCourseInput,
   CreateResourceInput,
@@ -40,7 +41,19 @@ const resourceInclude = {
       code: true,
     },
   },
+  _count: {
+    select: { resourceViews: true },
+  },
 } satisfies Prisma.StudyResourceInclude;
+
+type ResourceWithViewCount = Prisma.StudyResourceGetPayload<{
+  include: typeof resourceInclude;
+}>;
+
+function withUniqueViewCount(resource: ResourceWithViewCount) {
+  const { _count, ...resourceData } = resource;
+  return { ...resourceData, views: _count.resourceViews };
+}
 
 async function getInstitutionContext(userId: string) {
   const user = await prisma.user.findUnique({
@@ -107,7 +120,10 @@ export async function listResources(
     orderBy: { createdAt: "desc" },
   });
 
-  return { resources, institution: context.institution };
+  return {
+    resources: resources.map(withUniqueViewCount),
+    institution: context.institution,
+  };
 }
 
 export async function getResource(userId: string, id: string) {
@@ -122,11 +138,7 @@ export async function getResource(userId: string, id: string) {
     throw new ResourceServiceError("Resource not found", 404);
   }
 
-  return prisma.studyResource.update({
-    where: { id: resource.id },
-    data: { views: { increment: 1 } },
-    include: resourceInclude,
-  });
+  return withUniqueViewCount(resource);
 }
 
 export async function createResource(
@@ -152,7 +164,7 @@ export async function createResource(
 
   const id = randomUUID();
 
-  return prisma.studyResource.create({
+  const resource = await prisma.studyResource.create({
     data: {
       id,
       title: input.title,
@@ -169,6 +181,8 @@ export async function createResource(
     },
     include: resourceInclude,
   });
+
+  return withUniqueViewCount(resource);
 }
 
 export async function deleteResource(userId: string, id: string) {
@@ -191,7 +205,7 @@ export async function deleteResource(userId: string, id: string) {
 
   // Remove the filesystem asset before its database reference. If cleanup
   // fails, keep the row so the file is not silently orphaned.
-  await removeResourceFile(resource.fileName);
+  await removeResourceAssets(resource.fileName);
   await prisma.studyResource.delete({ where: { id: resource.id } });
 }
 
@@ -241,4 +255,26 @@ export async function recordResourceDownload(id: string) {
     where: { id },
     data: { downloads: { increment: 1 } },
   });
+}
+
+export async function recordResourceView(userId: string, id: string) {
+  // Authorization and institution scoping are identical to opening the PDF.
+  await getResourceFile(userId, id);
+
+  return recordUniqueResourceView(
+    {
+      async insert(resourceId, viewerId) {
+        const result = await prisma.resourceView.createMany({
+          data: [{ resourceId, userId: viewerId }],
+          skipDuplicates: true,
+        });
+        return result.count === 1;
+      },
+      count(resourceId) {
+        return prisma.resourceView.count({ where: { resourceId } });
+      },
+    },
+    id,
+    userId,
+  );
 }

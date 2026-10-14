@@ -50,14 +50,29 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  posts           Post[]
-  comments        Comment[]
-  likes           Like[]
+
+  // Posts
+  posts     Post[]
+  comments  Comment[]
+  likes     Like[]
+  postVotes PostVote[]
+
+  // Clubs
   clubMemberships ClubMember[]
-  clubsCreated    Club[]        @relation("ClubCreator")
-  clubsReviewed   Club[]        @relation("ClubReviewer")
+  clubsCreated    Club[] @relation("ClubCreator")
+  clubsReviewed   Club[] @relation("ClubReviewer")
+
+  // Communities
+  createdCommunities   Community[] @relation("CommunityCreator")
+  communityMemberships CommunityMember[]
+
+  // Events
   eventAttendance EventAttendee[]
-  studyResources  StudyResource[]
+
+  // Study resources
+  studyResources StudyResource[]
+  resourceViews  ResourceView[]
+
 
   @@index([institutionId])
   @@index([city])
@@ -139,6 +154,57 @@ model Club {
   @@index([createdById])
 }
 
+// ======================================================
+// DISCUSSION COMMUNITIES
+// ======================================================
+
+model Community {
+  id          String  @id @default(uuid())
+  name        String
+  slug        String  @unique
+  description String
+  imageUrl    String?
+
+  creatorId     String
+  institutionId String?
+  memberCount   Int     @default(0)
+
+  creator     User              @relation("CommunityCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  institution Institution?      @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  members     CommunityMember[]
+  posts       Post[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([creatorId])
+  @@index([institutionId])
+  @@index([memberCount])
+  @@index([createdAt])
+}
+
+model CommunityMember {
+  id String @id @default(uuid())
+
+  userId      String
+  communityId String
+  role        CommunityRole @default(MEMBER)
+  joinedAt    DateTime      @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([communityId, joinedAt])
+  @@index([userId])
+}
+
+enum CommunityRole {
+  MEMBER
+  MODERATOR
+  ADMIN
+}
+
 model ClubMember {
   id String @id @default(uuid())
 
@@ -168,23 +234,33 @@ enum ClubRole {
 // ======================================================
 
 model Post {
-  id      String @id @default(uuid())
+  id      String  @id @default(uuid())
+  title   String?
   content String
 
-  authorId String
-  clubId   String?
+  authorId    String
+  clubId      String?
+  communityId String?
+
+  voteScore    Int @default(0)
+  commentCount Int @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  club   Club? @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  club      Club?      @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  community Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
 
   comments Comment[]
   likes    Like[]
+  votes    PostVote[]
 
   @@index([authorId])
   @@index([clubId])
+  @@index([communityId, createdAt])
+  @@index([communityId, voteScore])
+  @@index([voteScore])
   @@index([createdAt])
 }
 
@@ -198,15 +274,37 @@ model Comment {
 
   authorId String
   postId   String
+  parentId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[] @relation("CommentReplies")
 
   @@index([authorId])
   @@index([postId])
+  @@index([parentId])
+}
+
+model PostVote {
+  id String @id @default(uuid())
+
+  userId String
+  postId String
+  value  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
 }
 
 // ======================================================
@@ -324,6 +422,7 @@ model Institution {
   users          User[]
   courses        Course[]
   studyResources StudyResource[]
+  communities    Community[]
   clubs          Club[]
 
   createdAt DateTime @default(now())
@@ -383,9 +482,10 @@ model StudyResource {
   courseId      String?
 
   // Filesystem-backed resources must be deleted through the resource service.
-  uploader    User        @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  course      Course?     @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  uploader      User           @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  course        Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  resourceViews ResourceView[]
 
   views     Int @default(0)
   downloads Int @default(0)
@@ -397,4 +497,17 @@ model StudyResource {
   @@index([institutionId, type])
   @@index([courseId])
   @@index([uploaderId])
+}
+
+model ResourceView {
+  id         String   @id @default(uuid())
+  resourceId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  resource StudyResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId])
+  @@index([userId])
 }
