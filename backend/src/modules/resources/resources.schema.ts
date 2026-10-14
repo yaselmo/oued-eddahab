@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const resourceTypeSchema = z.enum([
+const resourceTypeSchema = z.enum([
   "NOTES",
   "SUMMARY",
   "EXAM",

@@ -1,10 +1,18 @@
 import { constants } from "node:fs";
-import { access, open, unlink } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { access, mkdir, open, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 export const RESOURCE_UPLOAD_DIR = path.resolve(
   fileURLToPath(new URL("../../../uploads/resources/", import.meta.url)),
+);
+export const RESOURCE_THUMBNAIL_DIR = path.resolve(
+  fileURLToPath(new URL("../../../uploads/resource-thumbnails/", import.meta.url)),
 );
 
 const RESOURCE_FILE_NAME_PATTERN =
@@ -29,7 +37,20 @@ export function getResourceFilePath(fileName: string) {
   return filePath;
 }
 
-export async function removeResourceFile(fileName?: string) {
+export function getResourceThumbnailPath(fileName: string) {
+  // Validate the server-generated PDF name before deriving another file path.
+  getResourceFilePath(fileName);
+  const thumbnailName = `${fileName.slice(0, -4)}.png`;
+  const thumbnailPath = path.resolve(RESOURCE_THUMBNAIL_DIR, thumbnailName);
+
+  if (path.dirname(thumbnailPath) !== RESOURCE_THUMBNAIL_DIR) {
+    throw new Error("Resource thumbnail path is outside the thumbnail directory");
+  }
+
+  return thumbnailPath;
+}
+
+async function removeResourceFile(fileName?: string) {
   if (!fileName) return;
 
   try {
@@ -39,10 +60,89 @@ export async function removeResourceFile(fileName?: string) {
   }
 }
 
+async function removeResourceThumbnail(fileName?: string) {
+  if (!fileName) return;
+
+  try {
+    await unlink(getResourceThumbnailPath(fileName));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+export async function removeResourceAssets(fileName?: string) {
+  if (!fileName) return;
+
+  // Remove the derived asset first. If deleting the PDF subsequently fails,
+  // the thumbnail can still be recreated from the intact source document.
+  await removeResourceThumbnail(fileName);
+  await removeResourceFile(fileName);
+}
+
 export async function assertResourceFileReadable(fileName: string) {
   const filePath = getResourceFilePath(fileName);
   await access(filePath, constants.R_OK);
   return filePath;
+}
+
+async function assertResourceThumbnailReadable(fileName: string) {
+  const thumbnailPath = getResourceThumbnailPath(fileName);
+  await access(thumbnailPath, constants.R_OK);
+  return thumbnailPath;
+}
+
+export async function generateResourceThumbnail(fileName: string) {
+  const pdfPath = await assertResourceFileReadable(fileName);
+  const thumbnailPath = getResourceThumbnailPath(fileName);
+  const temporaryBase = path.join(
+    RESOURCE_THUMBNAIL_DIR,
+    `.thumbnail-${randomUUID()}`,
+  );
+  const temporaryPath = `${temporaryBase}.png`;
+
+  await mkdir(RESOURCE_THUMBNAIL_DIR, { recursive: true });
+
+  try {
+    // Poppler renders only page one, keeping listing requests independent of
+    // the original PDF size. execFile passes arguments without a shell.
+    await execFileAsync(
+      "pdftocairo",
+      [
+        "-png",
+        "-f",
+        "1",
+        "-l",
+        "1",
+        "-singlefile",
+        "-scale-to-x",
+        "720",
+        "-scale-to-y",
+        "-1",
+        pdfPath,
+        temporaryBase,
+      ],
+      { timeout: 20_000, maxBuffer: 1024 * 1024 },
+    );
+    await access(temporaryPath, constants.R_OK);
+    await rename(temporaryPath, thumbnailPath);
+    return thumbnailPath;
+  } finally {
+    try {
+      await unlink(temporaryPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+  }
+}
+
+export async function getOrCreateResourceThumbnail(fileName: string) {
+  try {
+    return await assertResourceThumbnailReadable(fileName);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  return generateResourceThumbnail(fileName);
 }
 
 export async function isValidPdf(fileName: string) {

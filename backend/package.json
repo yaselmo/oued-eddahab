@@ -1,8 +1,8 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Oued Eddahab REST API",
   "scripts": {
     "test": "bun test",
     "dev": "tsx watch src/server.ts",
@@ -10,7 +10,6 @@
     "start": "node dist/server.js",
     "lint": "eslint src"
   },
-  "keywords": [],
   "type": "module",
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

@@ -5,6 +5,7 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import locationRoutes from "./modules/locations/locations.routes.js";
 import profileRoutes from "./modules/profile/profile.routes.js";
 import resourcesRoutes from "./modules/resources/resources.routes.js";
+import communityRoutes from "./modules/community/community.routes.js";
 const app = express();
 
 app.use(cors());
@@ -21,5 +22,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api", locationRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/resources", resourcesRoutes);
+app.use("/api", communityRoutes);
 
 export default app;

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import SiteNav from "../components/site-nav";
 import { useAuthToken } from "../hooks/use-auth";
 import { apiUrl } from "../lib/api";
+import ResourceThumbnail from "./resource-thumbnail";
 
 type ResourceType =
   | "NOTES"
@@ -17,7 +18,6 @@ type ResourceType =
 type Resource = {
   id: string;
   title: string;
-  description: string | null;
   type: ResourceType;
   views: number;
   downloads: number;
@@ -64,7 +64,6 @@ function getMessage(value: unknown, fallback: string) {
   ) {
     return value.message;
   }
-
   return fallback;
 }
 
@@ -159,7 +158,9 @@ export default function ResourcesPage() {
           <div className="flex flex-col gap-7 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                {visibleInstitution?.abbreviation ?? visibleInstitution?.name ?? "Your institution"}
+                {visibleInstitution?.abbreviation ??
+                  visibleInstitution?.name ??
+                  "Your institution"}
               </p>
               <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
                 Study Resources
@@ -178,7 +179,9 @@ export default function ResourcesPage() {
           </div>
 
           <label className="mt-9 flex max-w-3xl items-center rounded-2xl border border-zinc-200 bg-white px-5 shadow-sm transition focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-100">
-            <span aria-hidden="true" className="mr-3 text-xl text-zinc-400">⌕</span>
+            <span aria-hidden="true" className="mr-3 text-xl text-zinc-400">
+              ⌕
+            </span>
             <span className="sr-only">Search resources</span>
             <input
               value={search}
@@ -214,11 +217,11 @@ export default function ResourcesPage() {
             <p className="mt-1 text-sm">{visibleError}</p>
           </div>
         ) : loading || !hasCurrentData ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((item) => (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => (
               <div
                 key={item}
-                className="h-56 animate-pulse rounded-2xl border border-zinc-200 bg-white"
+                className="h-[25rem] animate-pulse rounded-2xl border border-zinc-200 bg-white"
               />
             ))}
           </div>
@@ -230,40 +233,45 @@ export default function ResourcesPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {visibleResources.map((resource) => (
               <Link
                 key={resource.id}
                 href={`/resources/${resource.id}`}
-                className="group flex min-h-56 flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-md"
+                className="group flex min-h-[25rem] flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                    {typeLabels[resource.type]}
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(
-                      new Date(resource.createdAt),
-                    )}
-                  </span>
-                </div>
+                <ResourceThumbnail
+                  resourceId={resource.id}
+                  title={resource.title}
+                  token={token}
+                  onUnauthorized={redirectToLogin}
+                />
 
-                <h2 className="mt-5 text-lg font-semibold leading-snug group-hover:text-emerald-700">
-                  {resource.title}
-                </h2>
-                <p className="mt-2 text-sm font-medium text-zinc-500">
-                  {resource.course
-                    ? [resource.course.code, resource.course.name]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : "General"}
-                </p>
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                      {typeLabels[resource.type]}
+                    </span>
+                    <span className="text-xs text-zinc-400">PDF</span>
+                  </div>
 
-                <div className="mt-auto flex items-end justify-between gap-3 pt-6 text-xs text-zinc-500">
-                  <span>
-                    {resource.uploader.firstName} {resource.uploader.lastName}
-                  </span>
-                  <span>{resource.views} views · {resource.downloads} downloads</span>
+                  <h2 className="mt-4 line-clamp-2 text-lg font-semibold leading-snug group-hover:text-emerald-700">
+                    {resource.title}
+                  </h2>
+                  <p className="mt-2 line-clamp-1 text-sm font-medium text-zinc-500">
+                    {resource.course
+                      ? [resource.course.code, resource.course.name]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : "General"}
+                  </p>
+
+                  <div className="mt-auto flex items-end justify-between gap-3 pt-5 text-xs text-zinc-500">
+                    <span className="line-clamp-1">
+                      {resource.uploader.firstName} {resource.uploader.lastName}
+                    </span>
+                    <span className="shrink-0">{resource.views} views</span>
+                  </div>
                 </div>
               </Link>
             ))}

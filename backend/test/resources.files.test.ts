@@ -4,7 +4,10 @@ import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 
 import {
   getResourceFilePath,
+  getResourceThumbnailPath,
   isValidPdf,
+  removeResourceAssets,
+  RESOURCE_THUMBNAIL_DIR,
   RESOURCE_UPLOAD_DIR,
   validateUploadedPdf,
 } from "../src/modules/resources/resources.files.js";
@@ -13,6 +16,7 @@ const createdFiles: string[] = [];
 
 beforeAll(async () => {
   await mkdir(RESOURCE_UPLOAD_DIR, { recursive: true });
+  await mkdir(RESOURCE_THUMBNAIL_DIR, { recursive: true });
 });
 
 afterEach(async () => {
@@ -62,5 +66,19 @@ describe("resource file validation", () => {
 
   test("rejects filenames that could escape the upload directory", () => {
     expect(() => getResourceFilePath("../../outside.pdf")).toThrow();
+    expect(() => getResourceThumbnailPath("../../outside.pdf")).toThrow();
+  });
+
+  test("removes a PDF and its derived thumbnail together", async () => {
+    const fileName = await writeResourceFile(minimalPdf());
+    const filePath = getResourceFilePath(fileName);
+    const thumbnailPath = getResourceThumbnailPath(fileName);
+    createdFiles.push(thumbnailPath);
+    await writeFile(thumbnailPath, "png");
+
+    await removeResourceAssets(fileName);
+
+    await expect(access(filePath)).rejects.toThrow();
+    await expect(access(thumbnailPath)).rejects.toThrow();
   });
 });

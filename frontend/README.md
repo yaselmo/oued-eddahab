@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Oued Eddahab frontend
 
-## Getting Started
+The frontend is a Next.js 16 App Router application using React 19, strict
+TypeScript, and Tailwind CSS 4. It provides the authenticated home, profile,
+study-resource, and discussion-community interfaces.
 
-First, run the development server:
+See the repository [README](../README.md) for full local setup, backend
+configuration, and architecture notes.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Environment
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Copy the example file:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+~~~bash
+cp .env.example .env.local
+~~~
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**NEXT_PUBLIC_API_URL** is the backend origin and must not include **/api**:
 
-## Learn More
+~~~env
+NEXT_PUBLIC_API_URL=http://localhost:5000
+~~~
 
-To learn more about Next.js, take a look at the following resources:
+## Commands
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+~~~bash
+bun install
+bun run dev
+bun run lint
+bunx tsc --noEmit
+bun run build
+bun run start
+~~~
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Application routes and route-local components live under **src/app**. API URLs
+must be created with **src/app/lib/api.ts**, and authenticated pages should use
+the shared hooks in **src/app/hooks/use-auth.ts**.

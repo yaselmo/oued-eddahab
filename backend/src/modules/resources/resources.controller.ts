@@ -17,16 +17,19 @@ import {
   listResources,
   ResourceServiceError,
   recordResourceDownload,
+  recordResourceView,
 } from "./resources.service.js";
 import {
   assertResourceFileReadable,
-  removeResourceFile,
+  generateResourceThumbnail,
+  getOrCreateResourceThumbnail,
+  removeResourceAssets,
   validateUploadedPdf,
 } from "./resources.files.js";
 
 async function removeUploadedFile(fileName?: string) {
   try {
-    await removeResourceFile(fileName);
+    await removeResourceAssets(fileName);
   } catch (error) {
     console.error("Failed to remove resource file", error);
   }
@@ -91,6 +94,26 @@ export async function getResourceById(
   }
 }
 
+export async function addResourceView(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = resourceIdSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid resource ID" });
+    return;
+  }
+
+  try {
+    res.json(await recordResourceView(userId, parsed.data.id));
+  } catch (error) {
+    handleError(res, error, "Failed to record resource view");
+  }
+}
+
 export async function uploadResource(
   req: AuthenticatedRequest,
   res: Response,
@@ -120,6 +143,14 @@ export async function uploadResource(
     if (!(await validateUploadedPdf(req.file.filename))) {
       res.status(400).json({ message: "Only valid PDF files are allowed." });
       return;
+    }
+
+    try {
+      await generateResourceThumbnail(req.file.filename);
+    } catch (thumbnailError) {
+      // A preview is a derived cache: never reject an otherwise valid upload.
+      // The protected thumbnail endpoint will retry and the UI has a fallback.
+      console.warn("Failed to generate resource thumbnail", thumbnailError);
     }
 
     const resource = await createResource(userId, parsed.data, {
@@ -222,6 +253,7 @@ export async function serveResourceFile(
       return;
     }
 
+    res.setHeader("Content-Disposition", "inline");
     res.type("application/pdf").sendFile(absolutePath, (error) => {
       if (!error) return;
       if (res.headersSent) res.destroy(error);
@@ -229,5 +261,39 @@ export async function serveResourceFile(
     });
   } catch (error) {
     handleError(res, error, "Failed to open resource file");
+  }
+}
+
+export async function serveResourceThumbnail(
+  req: AuthenticatedRequest,
+  res: Response,
+) {
+  const userId = requireUserId(req, res);
+  if (!userId) return;
+
+  const parsed = resourceIdSchema.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid resource ID" });
+    return;
+  }
+
+  try {
+    // This lookup applies the same institution authorization as the PDF.
+    const resource = await getResourceFile(userId, parsed.data.id);
+
+    try {
+      const thumbnailPath = await getOrCreateResourceThumbnail(resource.fileName);
+      res.setHeader("Cache-Control", "private, max-age=86400");
+      res.type("image/png").sendFile(thumbnailPath, (error) => {
+        if (!error) return;
+        if (res.headersSent) res.destroy(error);
+        else handleError(res, error, "Failed to open resource thumbnail");
+      });
+    } catch (thumbnailError) {
+      console.warn("Resource thumbnail is unavailable", thumbnailError);
+      res.status(404).json({ message: "Resource preview is unavailable" });
+    }
+  } catch (error) {
+    handleError(res, error, "Failed to open resource thumbnail");
   }
 }
