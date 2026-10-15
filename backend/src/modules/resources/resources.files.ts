@@ -26,7 +26,7 @@ export const RESOURCE_THUMBNAIL_DIR = path.resolve(
 const RESOURCE_FILE_NAME_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.pdf$/i;
 
-function assertResourceFileName(fileName: string) {
+export function assertResourceFileName(fileName: string) {
   if (!RESOURCE_FILE_NAME_PATTERN.test(fileName)) {
     throw new Error("Invalid resource file name");
   }
@@ -131,7 +131,7 @@ async function removeResourceThumbnail(fileName: string) {
   await removeStorageFile(getResourceThumbnailPath(fileName));
 }
 
-export async function removeResourceAssets(fileName?: string) {
+export async function removeLocalResourceAssets(fileName?: string) {
   if (fileName === undefined) return;
 
   // Remove the derived asset first. If deleting the PDF subsequently fails,
@@ -147,7 +147,7 @@ export async function assertResourceFileReadable(fileName: string) {
   return filePath;
 }
 
-async function assertResourceThumbnailReadable(fileName: string) {
+export async function assertResourceThumbnailReadable(fileName: string) {
   const thumbnailPath = getResourceThumbnailPath(fileName);
   const handle = await openRegularStorageFile(
     RESOURCE_THUMBNAIL_DIR,
@@ -167,16 +167,21 @@ export function openResourceThumbnail(fileName: string): Promise<FileHandle> {
   return openRegularStorageFile(RESOURCE_THUMBNAIL_DIR, thumbnailPath);
 }
 
-export async function generateResourceThumbnail(fileName: string) {
-  const pdfPath = await assertResourceFileReadable(fileName);
-  const thumbnailPath = getResourceThumbnailPath(fileName);
+export async function generateThumbnailFile(
+  pdfPath: string,
+  thumbnailPath: string,
+) {
+  const pdfDirectory = path.dirname(pdfPath);
+  const thumbnailDirectory = path.dirname(thumbnailPath);
+  await assertRegularStorageFile(pdfDirectory, pdfPath);
+
   const temporaryBase = path.join(
-    RESOURCE_THUMBNAIL_DIR,
+    thumbnailDirectory,
     `.thumbnail-${randomUUID()}`,
   );
   const temporaryPath = `${temporaryBase}.png`;
 
-  await mkdir(RESOURCE_THUMBNAIL_DIR, { recursive: true });
+  await mkdir(thumbnailDirectory, { recursive: true });
 
   try {
     // Poppler renders only page one, keeping listing requests independent of
@@ -200,7 +205,7 @@ export async function generateResourceThumbnail(fileName: string) {
       { timeout: 20_000, maxBuffer: 1024 * 1024 },
     );
     const temporaryHandle = await openRegularStorageFile(
-      RESOURCE_THUMBNAIL_DIR,
+      thumbnailDirectory,
       temporaryPath,
     );
     await temporaryHandle.close();
@@ -213,6 +218,12 @@ export async function generateResourceThumbnail(fileName: string) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
+}
+
+export async function generateResourceThumbnail(fileName: string) {
+  const pdfPath = await assertResourceFileReadable(fileName);
+  const thumbnailPath = getResourceThumbnailPath(fileName);
+  return generateThumbnailFile(pdfPath, thumbnailPath);
 }
 
 export async function getOrCreateResourceThumbnail(fileName: string) {

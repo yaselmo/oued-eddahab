@@ -15,7 +15,7 @@ import {
   getResourceThumbnailPath,
   isValidPdf,
   openResourceFile,
-  removeResourceAssets,
+  removeLocalResourceAssets,
   RESOURCE_THUMBNAIL_DIR,
   RESOURCE_UPLOAD_DIR,
   validateUploadedPdf,
@@ -115,8 +115,8 @@ describe("resource file validation", () => {
     createdFiles.push(outsidePath);
     await writeFile(outsidePath, "outside", "utf8");
 
-    await expect(removeResourceAssets(`../${outsideName}`)).rejects.toThrow();
-    await expect(removeResourceAssets("")).rejects.toThrow();
+    await expect(removeLocalResourceAssets(`../${outsideName}`)).rejects.toThrow();
+    await expect(removeLocalResourceAssets("")).rejects.toThrow();
     expect(await readFile(outsidePath, "utf8")).toBe("outside");
   });
 
@@ -129,7 +129,7 @@ describe("resource file validation", () => {
     await symlink(outsidePath, filePath);
 
     await expect(openResourceFile(fileName)).rejects.toThrow();
-    await removeResourceAssets(fileName);
+    await removeLocalResourceAssets(fileName);
 
     expect(await readFile(outsidePath, "latin1")).toBe(minimalPdf());
     await expect(access(filePath)).rejects.toThrow();
@@ -151,7 +151,7 @@ describe("resource file validation", () => {
     createdFiles.push(thumbnailPath);
     await writeFile(thumbnailPath, "png");
 
-    await removeResourceAssets(fileName);
+    await removeLocalResourceAssets(fileName);
 
     await expect(access(filePath)).rejects.toThrow();
     await expect(access(thumbnailPath)).rejects.toThrow();

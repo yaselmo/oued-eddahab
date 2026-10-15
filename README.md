@@ -82,7 +82,11 @@ Create **backend/.env**:
 DATABASE_URL="postgresql://oued:oued_dev@localhost:5432/oued_eddahab?schema=public"
 PORT=5000
 JWT_SECRET="replace-with-a-long-random-secret"
+RESOURCE_STORAGE_DRIVER="local"
 ~~~
+
+The complete template is in **backend/.env.example**. Local storage is the
+default and requires no cloud credentials.
 
 Generate the Prisma client, apply migrations, seed institutions, and start the
 development server:
@@ -194,11 +198,30 @@ Resource requests never accept an institution scope or uploader identity from
 the client. The backend derives both from the authenticated user. Selected
 courses must belong to the same institution.
 
-PDFs are stored under **backend/uploads/resources**; thumbnails are derived
-under **backend/uploads/resource-thumbnails**. Both directories are ignored and
-served only through authenticated endpoints. Resource relations use restrictive
-deletes so database records cannot silently outlive application-managed file
-cleanup.
+With **RESOURCE_STORAGE_DRIVER=local**, PDFs are stored under
+**backend/uploads/resources** and thumbnails under
+**backend/uploads/resource-thumbnails**. Both directories are ignored and
+served only through authenticated endpoints.
+
+Production can use a private Cloudflare R2 bucket through its S3-compatible
+API by setting **RESOURCE_STORAGE_DRIVER=r2** and the backend-only
+**R2_ACCOUNT_ID**, **R2_BUCKET_NAME**, **R2_ACCESS_KEY_ID**, and
+**R2_SECRET_ACCESS_KEY** variables from **backend/.env.example**. The bucket
+must remain private; the frontend continues to use the authenticated resource
+API and never receives R2 credentials. Existing local files remain readable as
+a compatibility fallback after R2 is enabled. PDF responses support single
+HTTP byte ranges for native browser viewers and resumable downloads.
+
+To enable R2, open the Cloudflare Dashboard and select **Storage & databases →
+R2 → Overview**, then complete the R2 subscription checkout. Create the private
+bucket, then choose **Manage in API Tokens → Create Account API token**. Grant
+**Object Read & Write** to that bucket only. Copy the generated Access Key ID
+and Secret Access Key directly into **backend/.env**; the secret is displayed
+only once. Do not use the Wrangler OAuth token as an S3 credential, expose
+these values through the frontend, or enable public bucket access.
+
+Resource relations use restrictive deletes so database records cannot silently
+outlive application-managed object cleanup.
 
 Views are unique per authenticated user and PDF. Metadata, thumbnails, and
 downloads do not record a view. The frontend records one only after the

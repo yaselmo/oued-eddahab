@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma, ResourceType } from "../../generated/prisma/client.js";
 import prisma from "../../lib/prisma.js";
 import { recordUniqueResourceView } from "./resource-views.domain.js";
-import { removeResourceAssets } from "./resources.files.js";
+import { removeResourceAssets } from "./resources.storage.js";
 import type {
   CreateCourseInput,
   CreateResourceInput,
@@ -203,7 +203,7 @@ export async function deleteResource(userId: string, id: string) {
     );
   }
 
-  // Remove the filesystem asset before its database reference. If cleanup
+  // Remove the stored assets before their database reference. If cleanup
   // fails, keep the row so the file is not silently orphaned.
   await removeResourceAssets(resource.fileName);
   await prisma.studyResource.delete({ where: { id: resource.id } });
