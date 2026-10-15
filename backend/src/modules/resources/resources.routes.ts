@@ -17,8 +17,10 @@ import {
   uploadResource,
 } from "./resources.controller.js";
 import { RESOURCE_UPLOAD_DIR } from "./resources.files.js";
+import { getResourceStorage } from "./resources.storage.js";
 
 mkdirSync(RESOURCE_UPLOAD_DIR, { recursive: true });
+getResourceStorage();
 
 const upload = multer({
   storage: multer.diskStorage({

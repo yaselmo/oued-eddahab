@@ -21,16 +21,20 @@ import {
 } from "./resources.service.js";
 import {
   generateResourceThumbnail,
-  getOrCreateResourceThumbnail,
-  openResourceFile,
-  openResourceThumbnail,
-  removeResourceAssets,
   validateUploadedPdf,
 } from "./resources.files.js";
+import {
+  discardUploadedResourceAssets,
+  ensureResourceThumbnail,
+  InvalidResourceRangeError,
+  persistUploadedResourceAssets,
+  readResourceAsset,
+  type ResourceAsset,
+} from "./resources.storage.js";
 
 async function removeUploadedFile(fileName?: string) {
   try {
-    await removeResourceAssets(fileName);
+    await discardUploadedResourceAssets(fileName);
   } catch (error) {
     console.error("Failed to remove resource file", error);
   }
@@ -55,17 +59,47 @@ function requireUserId(req: AuthenticatedRequest, res: Response) {
   return req.userId;
 }
 
-function streamOpenFile(
+function streamResourceAsset(
   res: Response,
-  handle: Awaited<ReturnType<typeof openResourceFile>>,
+  asset: ResourceAsset,
 ) {
-  const stream = handle.createReadStream();
-
-  stream.on("error", (error) => {
+  asset.stream.on("error", (error) => {
     if (res.headersSent) res.destroy(error);
     else handleError(res, error, "Failed to read resource file");
   });
-  stream.pipe(res);
+  asset.stream.pipe(res);
+}
+
+function setResourceAssetHeaders(res: Response, asset: ResourceAsset) {
+  res.setHeader("Accept-Ranges", "bytes");
+  res.setHeader("Content-Length", asset.contentLength);
+  if (asset.etag) res.setHeader("ETag", asset.etag);
+  if (asset.lastModified) {
+    res.setHeader("Last-Modified", asset.lastModified.toUTCString());
+  }
+
+  if (asset.range) {
+    res.status(206);
+    res.setHeader(
+      "Content-Range",
+      `bytes ${asset.range.start}-${asset.range.end}/${asset.totalSize}`,
+    );
+  }
+}
+
+function handleResourceAssetError(
+  res: Response,
+  error: unknown,
+  fallback: string,
+) {
+  if (error instanceof InvalidResourceRangeError) {
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Content-Range", `bytes */${error.totalSize}`);
+    res.status(416).json({ message: error.message });
+    return;
+  }
+
+  handleError(res, error, fallback);
 }
 
 export async function getResources(req: AuthenticatedRequest, res: Response) {
@@ -167,6 +201,8 @@ export async function uploadResource(
       console.warn("Failed to generate resource thumbnail", thumbnailError);
     }
 
+    await persistUploadedResourceAssets(req.file.filename);
+
     const resource = await createResource(userId, parsed.data, {
       fileName: req.file.filename,
       fileSize: req.file.size,
@@ -250,23 +286,33 @@ export async function serveResourceFile(
   try {
     const shouldDownload = req.query.download === "1";
     const resource = await getResourceFile(userId, parsed.data.id);
-    const handle = await openResourceFile(resource.fileName);
+    const asset = await readResourceAsset(
+      resource.fileName,
+      "pdf",
+      req.headers.range,
+    );
 
     if (shouldDownload) {
       res.attachment(`${resource.title}.pdf`);
-      res.once("finish", () => {
-        void recordResourceDownload(resource.id).catch((updateError) => {
-          console.error("Failed to record resource download", updateError);
+      const isCompleteResponse = !asset.range || (
+        asset.range.start === 0 && asset.range.end === asset.totalSize - 1
+      );
+      if (isCompleteResponse) {
+        res.once("finish", () => {
+          void recordResourceDownload(resource.id).catch((updateError) => {
+            console.error("Failed to record resource download", updateError);
+          });
         });
-      });
+      }
     } else {
       res.setHeader("Content-Disposition", "inline");
     }
 
-    res.type("application/pdf");
-    streamOpenFile(res, handle);
+    setResourceAssetHeaders(res, asset);
+    res.type(asset.contentType);
+    streamResourceAsset(res, asset);
   } catch (error) {
-    handleError(res, error, "Failed to open resource file");
+    handleResourceAssetError(res, error, "Failed to open resource file");
   }
 }
 
@@ -288,11 +334,12 @@ export async function serveResourceThumbnail(
     const resource = await getResourceFile(userId, parsed.data.id);
 
     try {
-      await getOrCreateResourceThumbnail(resource.fileName);
-      const handle = await openResourceThumbnail(resource.fileName);
+      await ensureResourceThumbnail(resource.fileName);
+      const asset = await readResourceAsset(resource.fileName, "thumbnail");
       res.setHeader("Cache-Control", "private, max-age=86400");
-      res.type("image/png");
-      streamOpenFile(res, handle);
+      setResourceAssetHeaders(res, asset);
+      res.type(asset.contentType);
+      streamResourceAsset(res, asset);
     } catch (thumbnailError) {
       console.warn("Resource thumbnail is unavailable", thumbnailError);
       res.status(404).json({ message: "Resource preview is unavailable" });

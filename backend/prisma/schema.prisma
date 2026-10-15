@@ -481,7 +481,7 @@ model StudyResource {
   institutionId String
   courseId      String?
 
-  // Filesystem-backed resources must be deleted through the resource service.
+  // Stored resource assets must be deleted through the resource service.
   uploader      User           @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
   institution   Institution    @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   course        Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)

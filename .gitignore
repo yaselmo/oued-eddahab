@@ -6,6 +6,7 @@
 # Logs and test output
 *.log
 coverage/
+.wrangler/
 
 # Operating system and editor files
 .DS_Store
