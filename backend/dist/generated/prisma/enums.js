@@ -12,6 +12,27 @@ export const UserRole = {
     MODERATOR: 'MODERATOR',
     ADMIN: 'ADMIN'
 };
+export const Sex = {
+    MALE: 'MALE',
+    FEMALE: 'FEMALE',
+    OTHER: 'OTHER',
+    PREFER_NOT_TO_SAY: 'PREFER_NOT_TO_SAY'
+};
+export const ClubStatus = {
+    PENDING: 'PENDING',
+    APPROVED: 'APPROVED',
+    REJECTED: 'REJECTED'
+};
+export const ClubCategory = {
+    TECH: 'TECH',
+    SPORT: 'SPORT',
+    CULTURE: 'CULTURE',
+    ART: 'ART',
+    SCIENCE: 'SCIENCE',
+    SOCIAL: 'SOCIAL',
+    ENTREPRENEURSHIP: 'ENTREPRENEURSHIP',
+    OTHER: 'OTHER'
+};
 export const ClubRole = {
     MEMBER: 'MEMBER',
     MODERATOR: 'MODERATOR',
@@ -20,5 +41,13 @@ export const ClubRole = {
 export const AttendanceStatus = {
     GOING: 'GOING',
     INTERESTED: 'INTERESTED'
+};
+export const ResourceType = {
+    NOTES: 'NOTES',
+    SUMMARY: 'SUMMARY',
+    EXAM: 'EXAM',
+    EXERCISE: 'EXERCISE',
+    ASSIGNMENT: 'ASSIGNMENT',
+    OTHER: 'OTHER'
 };
 //# sourceMappingURL=enums.js.map

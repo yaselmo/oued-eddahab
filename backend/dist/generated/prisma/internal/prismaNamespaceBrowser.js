@@ -46,7 +46,11 @@ export const ModelName = {
     Comment: 'Comment',
     Like: 'Like',
     Event: 'Event',
-    EventAttendee: 'EventAttendee'
+    EventAttendee: 'EventAttendee',
+    University: 'University',
+    Institution: 'Institution',
+    Course: 'Course',
+    StudyResource: 'StudyResource'
 };
 /*
  * Enums
@@ -66,8 +70,18 @@ export const UserScalarFieldEnum = {
     lastName: 'lastName',
     bio: 'bio',
     avatarUrl: 'avatarUrl',
+    age: 'age',
+    city: 'city',
+    country: 'country',
+    nationality: 'nationality',
+    phone: 'phone',
+    languages: 'languages',
+    interests: 'interests',
+    sex: 'sex',
     program: 'program',
     year: 'year',
+    institutionId: 'institutionId',
+    emailVerifiedAt: 'emailVerifiedAt',
     role: 'role',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
@@ -78,6 +92,18 @@ export const ClubScalarFieldEnum = {
     slug: 'slug',
     description: 'description',
     logoUrl: 'logoUrl',
+    logoFileName: 'logoFileName',
+    category: 'category',
+    activities: 'activities',
+    additionalInfo: 'additionalInfo',
+    responsibleName: 'responsibleName',
+    responsibleEmail: 'responsibleEmail',
+    status: 'status',
+    rejectionReason: 'rejectionReason',
+    reviewedAt: 'reviewedAt',
+    institutionId: 'institutionId',
+    createdById: 'createdById',
+    reviewedById: 'reviewedById',
     createdAt: 'createdAt',
     updatedAt: 'updatedAt'
 };
@@ -127,6 +153,55 @@ export const EventAttendeeScalarFieldEnum = {
     eventId: 'eventId',
     status: 'status',
     createdAt: 'createdAt'
+};
+export const UniversityScalarFieldEnum = {
+    id: 'id',
+    name: 'name',
+    nameArabic: 'nameArabic',
+    country: 'country',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const InstitutionScalarFieldEnum = {
+    id: 'id',
+    name: 'name',
+    abbreviation: 'abbreviation',
+    nameArabic: 'nameArabic',
+    city: 'city',
+    country: 'country',
+    address: 'address',
+    phone: 'phone',
+    fax: 'fax',
+    studentCount2023_2024: 'studentCount2023_2024',
+    universityId: 'universityId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const CourseScalarFieldEnum = {
+    id: 'id',
+    name: 'name',
+    code: 'code',
+    institutionId: 'institutionId',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
+};
+export const StudyResourceScalarFieldEnum = {
+    id: 'id',
+    title: 'title',
+    description: 'description',
+    fileUrl: 'fileUrl',
+    fileName: 'fileName',
+    fileSize: 'fileSize',
+    type: 'type',
+    academicYear: 'academicYear',
+    professor: 'professor',
+    uploaderId: 'uploaderId',
+    institutionId: 'institutionId',
+    courseId: 'courseId',
+    views: 'views',
+    downloads: 'downloads',
+    createdAt: 'createdAt',
+    updatedAt: 'updatedAt'
 };
 export const SortOrder = {
     asc: 'asc',
